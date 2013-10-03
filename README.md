@@ -6,7 +6,7 @@ The project is aimed at providing a framework for which controllers can be devel
 
 ##Prerequisite
 
-+ [libnifalcon 1.0.1](http://qdot.github.io/libnifalcon/)
++ [libnifalcon 1.0.1](http://qdot.github.io/libnifalcon/downloads.html)
 + [boost c++ 1.49.0](http://sourceforge.net/projects/boost/files/boost/1.49.0/)
  
 ##Installation
