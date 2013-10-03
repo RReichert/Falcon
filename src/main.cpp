@@ -1,11 +1,11 @@
 // HEADERS
-#include "haptic/haptic.h"
+#include "falcon/falcon.h"
 
 // LIBRARY
 #include <stdio.h>
 
 // MAIN
-int main(){
+int main(int argc, char** argv){
 
   // create falcon instance
   Falcon *falcon = new Falcon();
