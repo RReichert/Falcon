@@ -24,7 +24,7 @@ MESSAGE("Build Type: ${CMAKE_BUILD_TYPE}")
 
 # FIND LIBRARIES
 MESSAGE("Boost C++ Library")
-FIND_PACKAGE(Boost QUIET REQUIRED)
+FIND_PACKAGE(Boost COMPONENTS thread QUIET REQUIRED)
 IF(NOT Boost_FOUND)
   MESSAGE(FATAL_ERROR "  Boost library was not found")
 ELSE(NOT Boost_FOUND)
@@ -51,7 +51,7 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 ################################################################################
 
 # DEFINE INCLUDE DIRECTORY
-#INCLUDE_DIRECTORIES("src")
+INCLUDE_DIRECTORIES(include)
 
 # ENTER SOURCE FOLDER
 ADD_SUBDIRECTORY(src)
