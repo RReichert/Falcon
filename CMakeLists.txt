@@ -24,9 +24,13 @@ MESSAGE("Build Type: ${CMAKE_BUILD_TYPE}")
 
 # FIND LIBRARIES
 MESSAGE("Boost C++ Library")
-FIND_PACKAGE(Boost REQUIRED)
+FIND_PACKAGE(Boost QUIET REQUIRED)
 IF(NOT Boost_FOUND)
-  MESSAGE(FATAL_ERROR "Boost library was not found")
+  MESSAGE(FATAL_ERROR "  Boost library was not found")
+ELSE(NOT Boost_FOUND)
+  MESSAGE("  Libraries: ${Boost_LIBRARIES}")
+  MESSAGE("  Include Directory: ${Boost_INCLUDE_DIRS}")
+  MESSAGE("  Library Directory: ${Boost_LIBRARY_DIRS}")
 ENDIF(NOT Boost_FOUND)
 
 # COMPILER OPTIONS 

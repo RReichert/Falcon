@@ -1,4 +1,6 @@
 # ignore the following folders
 bin/
-lib/
 build/
+
+# ignore file types
+*.swp

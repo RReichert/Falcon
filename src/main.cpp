@@ -1,5 +1,5 @@
 // HEADERS
-#include "falcon/falcon.h"
+#include "falcon/falcon.hpp"
 
 // LIBRARY
 #include <stdio.h>
@@ -9,6 +9,9 @@ int main(int argc, char** argv){
 
   // create falcon instance
   Falcon *falcon = new Falcon();
+
+  // close falcon
+  delete falcon;
 
   // print error message
   printf("Success\n");
