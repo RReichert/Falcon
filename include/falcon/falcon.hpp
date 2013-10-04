@@ -5,17 +5,25 @@
 #include <iostream>
 #include <boost/array.hpp>
 #include <boost/thread.hpp>
+#include <boost/static_assert.hpp>
 #include <falcon/core/FalconDevice.h>
 
 using namespace std;
 using namespace libnifalcon;
 
+template<typename Controller_Class>
 class Falcon {
+
+  // COMPILE TIME ASSERTIONS
+  BOOST_STATIC_ASSERT((is_base_of<Controller, Controller_Class>::value));
 
   protected:
 
     // device
     FalconDevice device;
+
+    // device's controller
+    Controller_Class controller;
 
     // callback thread
     boost::thread *callbackThread;

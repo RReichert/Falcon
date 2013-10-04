@@ -1,15 +1,16 @@
 // HEADERS
 #include "falcon/falcon.hpp"
+#include "falcon/controller/pid.hpp"
 
 // LIBRARY
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
 
 // MAIN
 int main(int argc, char** argv){
 
   // create falcon instance
-  Falcon falcon;
+  Falcon falcon<PID>;
 
   // check if there are any
   if(falcon.hasError()) {
