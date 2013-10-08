@@ -15,5 +15,5 @@ class Controller {
     Controller(boost::array<double, 3> startPosition);
 
     // feedback controller method
-    virtual boost::array<double, 3> getForce(boost::array<double, 3> currentPosition, boost::array<double, 3> desiredPosition) = 0;
+    virtual boost::array<double, 3> getForce(boost::array<double, 3> currentPosition, boost::array<double, 3> desiredPosition);
 };
