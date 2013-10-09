@@ -130,7 +130,7 @@ bool Falcon<T>::init() {
     // successfully initialized
     initialized = true;
 
-  } catch(const string& msg) {
+  } catch(char const* msg) {
 
     // clean up if error uninitialized 
     uninit();
