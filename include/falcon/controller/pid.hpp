@@ -8,9 +8,6 @@ class PID : public Controller{
 
   public:
 
-    // CONSTRUCTOR
-    PID(boost::array<double, 3> startPosition);
-
     // feedback controller method
-    boost::array<double, 3> getForce(boost::array<double, 3> currentPosition, boost::array<double, 3> desiredPosition);
+    boost::array<double, 3> getForce(boost::array<double, 3> currentAngles, boost::array<double, 3> desiredAngles);
 };

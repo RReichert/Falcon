@@ -1,9 +1,5 @@
 #include "falcon/controller/pid.hpp"
 
-PID::PID(boost::array<double, 3> startPosition) : Controller(startPosition) {
-
-}
-
-boost::array<double, 3> PID::getForce(boost::array<double, 3> currentPosition, boost::array<double, 3> desiredPosition) {
+boost::array<double, 3> PID::getForce(boost::array<double, 3> currentAngles, boost::array<double, 3> desiredAngles) {
   return boost::array<double, 3>();
 }
