@@ -12,7 +12,7 @@
 using namespace std;
 using namespace libnifalcon;
 
-template<class T>
+template<class T=Controller>
 class Falcon {
 
   // ASSERT THAT THE CLASS BEING PASSED IS A CHILD OF CONTROLLER 
@@ -71,7 +71,8 @@ class Falcon {
     void setDesiredPosition(boost::array<double, 3> desiredPosition);
 
     // CALLBACK FUNCTION
-    friend void falconCallback(Falcon<T>*);
+    template<class X>
+    friend void falconCallback(Falcon<X>*);
 };
 
 template<class T>
@@ -90,55 +91,85 @@ Falcon<T>::Falcon() : initialized(false) {
 template<class T>
 bool Falcon<T>::init() {
 
-  // check how many devices are connected
-  unsigned int deviceCount;
-  device.getDeviceCount(deviceCount);
+  // clear any error message
+  error.clear();
 
-  // report if no falcon was found
-  if(deviceCount == 0) {
-    error = "no device found";
-    return;
-  }
+  try{
 
-  // attempt to open up connection with device
-  for(unsigned int x=0; x<deviceCount; x++) {
+    // check how many devices are connected
+    unsigned int deviceCount;
+    device.getDeviceCount(deviceCount);
 
-    // attempt to open up connection
-    if(!device.open(x)) {
-      continue;
+    // check number of falcon's connected 
+    if(deviceCount == 0) {
+      throw "no device found";
     }
+
+    // attempt to open up connection with device
+    for(unsigned int x=0; x<deviceCount; x++) {
+      if(!device.open(x)) {
+        continue;
+      }
+    }
+
+    // report on connection status
+    if(!device.isOpen()) {
+      throw "unable to communicate with any of the devices";
+    }
+
+    // obtain firmware & kinematic
+    firmware = device.getFalconFirmware();
+    kinematic = device.getFalconKinematic();
+
+    // setup controller
+    controller = (Controller*) new T();
+
+    // create callback function thread
+    callbackThread = new boost::thread(falconCallback<T>, this);
+
+    // successfully initialized
+    initialized = true;
+
+  } catch(const string& msg) {
+
+    // clean up if error uninitialized 
+    uninit();
+
+    // record error message
+    error = msg;
   }
 
-  // report on connection status
-  if(!device.isOpen()) {
-    error = "unable to communicate with any of the devices";
-    return;
-  }
-
-  // obtain firmware & kinematic
-  firmware = device.getFalconFirmware();
-  kinematic = device.getFalconKinematic();
-
-  // setup controller
-  controller = (Controller*) new T();
-
-  // create callback function thread
-  callbackThread = new boost::thread(falconCallback<T>, this);
-
-  // return state
+  // return initialized results
   return initialized;
 }
 
 template<class T>
 Falcon<T>::~Falcon() {
 
+  // uninitialize class
+  uninit();
+
+}
+
+template<class T>
+void Falcon<T>::uninit() {
+
   // close the thread
   if(!callbackThread) {
     callbackThread->join();
+    delete callbackThread;
+  }
+
+  // destroy controller
+  if(!controller) {
+    delete controller;
   }
 
   // close the falcon communication
   device.close();
+
+  // set status
+  initialized = false;
 
 }
 
@@ -153,7 +184,7 @@ string Falcon<T>::getError() {
 }
 
 template<class T>
-boost::array<double, 3> getCurrentPosition(){
+boost::array<double, 3> Falcon<T>::getCurrentPosition(){
   if(initialized) {
     
   } else {
@@ -163,6 +194,6 @@ boost::array<double, 3> getCurrentPosition(){
 }
 
 template<class T>
-void setDesiredPosition(boost::array<double, 3> desiredPosition){
+void Falcon<T>::setDesiredPosition(boost::array<double, 3> desiredPosition){
   return;
 }
