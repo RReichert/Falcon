@@ -20,13 +20,8 @@ class Falcon {
 
   private:
 
-    // callback thread
-    boost::thread *callbackThread = NULL;
-
     // error message
     string error;
-
-  protected:
 
     // state
     bool running = false;
@@ -43,6 +38,9 @@ class Falcon {
     // falcon-controller
     bool hasDesiredAngles = NULL;
     boost::array<double, 3> desiredAngles;
+
+    // callback thread
+    boost::thread *callbackThread = NULL;
 
   public:
 
@@ -80,12 +78,11 @@ class Falcon {
     void setDesiredPosition(boost::array<double, 3> desiredPosition);
 
     // CALLBACK FUNCTION
-    template<class X>
-    friend void falconCallback(Falcon<X>*);
+    void operator() (); 
 };
 
 template<class T>
-void falconCallback(Falcon<T> *falcon) {
+void Falcon<T>::operator() () {
 
   // function variables
   boost::array<double, 3> torque;
@@ -94,31 +91,40 @@ void falconCallback(Falcon<T> *falcon) {
   const boost::array<double, 3> zeros = {{0,0,0}}; 
 
   // while device falcon is initialized
-  while(falcon->initialized) {
+  while(initialized) {
 
     // if device has not requested a controller - wait 
-    if(!falcon->running) {
+    if(!running) {
       // wait till running is set
       continue;
     }
 
-    // reset torque variable
-    torque = zeros;
+    // MAIN DEVICE LOOP 
+    device.runIOLoop();
 
-    // if a valid desired angle was provided
-    if(falcon->hasDesiredAngles) {
-      torque = falcon->controller->getTorque(angles, falcon->desiredAngles);
+    // DO NOT INTERRUPT
+    {
+      // interruption marker
+      boost::this_thread::disable_interruption iPoint; 
+
+      // reset torque variable
+      torque = zeros;
+
+      // if a valid desired angle was provided
+      if(hasDesiredAngles) {
+        torque = controller->getTorque(angles, desiredAngles);
+      }
+
+      // convert torque to motor voltages:
+      encodedTorque[0] = -10000.0*torque[0];
+      encodedTorque[1] = -10000.0*torque[1];
+      encodedTorque[2] = -10000.0*torque[2];
+
+      // NOTE: this is from the libnifalcon's FalconKinematicStamper.cpp
+
+      // set feedback torque 
+      firmware->setForces(encodedTorque);
     }
-
-    // convert torque to motor voltages:
-    encodedTorque[0] = -10000.0*torque[0];
-    encodedTorque[1] = -10000.0*torque[1];
-    encodedTorque[2] = -10000.0*torque[2];
-
-    // NOTE: this is from the libnifalcon's FalconKinematicStamper.cpp
-
-    // set feedback torque 
-    falcon->firmware->setForces(encodedTorque);
   }
 
 }
@@ -170,7 +176,7 @@ bool Falcon<T>::init() {
     controller = (Controller*) new T();
 
     // create callback function thread
-    callbackThread = new boost::thread(falconCallback<T>, this);
+    callbackThread = new boost::thread(boost::ref(*this));
 
     // successfully initialized
     initialized = true;
