@@ -20,9 +20,6 @@ class Falcon {
 
   private:
 
-    // state
-    bool initialized;
-
     // callback thread
     boost::thread *callbackThread;
 
@@ -31,6 +28,10 @@ class Falcon {
 
   protected:
 
+    // state
+    bool initialized;
+    bool running;
+
     // device
     FalconDevice device;
     boost::shared_ptr<FalconFirmware> firmware;
@@ -38,6 +39,10 @@ class Falcon {
 
     // controller
     Controller *controller;
+
+    // falcon-controller
+    bool hasDesiredAngles;
+    boost::array<double, 3> desiredAngles;
 
   public:
 
@@ -62,12 +67,16 @@ class Falcon {
     // stops controller
     void stop();
 
+    // running?
+    bool isRunning();
+
     // error methods
     bool hasError();
     string getError();
 
     // position methods 
-    boost::array<double, 3> getCurrentPosition();
+    bool getCurrentAngles(boost::array<double, 3> &currentAngles);
+    bool getCurrentPosition(boost::array<double, 3> &currentPosition);
     void setDesiredPosition(boost::array<double, 3> desiredPosition);
 
     // CALLBACK FUNCTION
@@ -78,14 +87,46 @@ class Falcon {
 template<class T>
 void falconCallback(Falcon<T> *falcon) {
 
+  // function variables
+  boost::array<int, 3> forceInt;
+  boost::array<double, 3> force;
+  boost::array<double, 3> angles;
+  const boost::array<double, 3> zeros = {{0,0,0}}; 
+
+  // while device falcon is initialized
+  while(falcon->initialized) {
+
+    // if device has not requested a controller - wait 
+    if(!falcon->running) {
+      // wait till running is set
+      continue;
+    }
+
+    // reset force variable
+    force = zeros;
+
+    // if a valid desired angle was provided
+    if(falcon->hasDesiredAngles) {
+      force = falcon->controller->getForce(angles, falcon->desiredAngles);
+
+    }
+
+    // convert torque unit to falcon 
+
+    // set feedback force
+    falcon->firmware->setForces(forceInt);
+  }
+
 }
 
 template<class T>
-Falcon<T>::Falcon() : initialized(false) {
-
-  // initialize the device
+Falcon<T>::Falcon() : running(false), hasDesiredAngles(false) {
   init();
+}
 
+template<class T>
+Falcon<T>::~Falcon() {
+  uninit();
 }
 
 template<class T>
@@ -144,33 +185,46 @@ bool Falcon<T>::init() {
 }
 
 template<class T>
-Falcon<T>::~Falcon() {
-
-  // uninitialize class
-  uninit();
-
-}
-
-template<class T>
 void Falcon<T>::uninit() {
 
+  // flag as uninitialized
+  running = false;
+  initialized = false;
+
   // close the thread
-  if(!callbackThread) {
+  if(callbackThread) {
     callbackThread->join();
     delete callbackThread;
   }
 
   // destroy controller
-  if(!controller) {
+  if(controller) {
     delete controller;
   }
 
   // close the falcon communication
   device.close();
 
-  // set status
-  initialized = false;
+}
 
+template<class T>
+bool Falcon<T>::isInit() {
+  return initialized;
+}
+
+template<class T>
+void Falcon<T>::start() {
+  running = true;
+}
+
+template<class T>
+void Falcon<T>::stop() {
+  running = false;
+}
+
+template<class T>
+bool Falcon<T>::isRunning() {
+  return running;
 }
 
 template<class T>
@@ -184,16 +238,24 @@ string Falcon<T>::getError() {
 }
 
 template<class T>
-boost::array<double, 3> Falcon<T>::getCurrentPosition(){
+bool Falcon<T>::getCurrentAngles(boost::array<double, 3> &currentAngles) {
   if(initialized) {
-    
-  } else {
-
+    kinematic->getAngles(device.getPosition(), currentAngles);
   }
-  return boost::array<double, 3>();
+
+  return initialized;
+}
+
+template<class T>
+bool Falcon<T>::getCurrentPosition(boost::array<double, 3> &currentPosition) {
+  if(initialized) {
+    currentPosition = device.getPosition();
+  }
+
+  return initialized;
 }
 
 template<class T>
 void Falcon<T>::setDesiredPosition(boost::array<double, 3> desiredPosition){
-  return;
+  hasDesiredAngles = kinematic->getAngles(desiredPosition, desiredAngles);
 }

@@ -1,6 +1,6 @@
 #include "falcon/controller/controller.hpp"
 
-Controller::~Controller(){
+Controller::~Controller() {
 
 }
 
