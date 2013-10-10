@@ -21,7 +21,7 @@ class Falcon {
   private:
 
     // callback thread
-    boost::thread *callbackThread;
+    boost::thread *callbackThread = NULL;
 
     // error message
     string error;
@@ -29,8 +29,8 @@ class Falcon {
   protected:
 
     // state
-    bool initialized;
-    bool running;
+    bool running = false;
+    bool initialized = false;
 
     // device
     FalconDevice device;
@@ -38,10 +38,10 @@ class Falcon {
     boost::shared_ptr<FalconKinematic> kinematic;
 
     // controller
-    Controller *controller;
+    Controller *controller = NULL;
 
     // falcon-controller
-    bool hasDesiredAngles;
+    bool hasDesiredAngles = NULL;
     boost::array<double, 3> desiredAngles;
 
   public:
@@ -120,7 +120,7 @@ void falconCallback(Falcon<T> *falcon) {
 }
 
 template<class T>
-Falcon<T>::Falcon() : running(false), hasDesiredAngles(false) {
+Falcon<T>::Falcon() {
   init();
 }
 
@@ -240,7 +240,8 @@ string Falcon<T>::getError() {
 template<class T>
 bool Falcon<T>::getCurrentAngles(boost::array<double, 3> &currentAngles) {
   if(initialized) {
-    kinematic->getAngles(device.getPosition(), currentAngles);
+    boost::array<double, 3> currentPosition = device.getPosition();
+    kinematic->getAngles(currentPosition, currentAngles);
   }
 
   return initialized;
