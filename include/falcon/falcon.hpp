@@ -88,9 +88,9 @@ template<class T>
 void falconCallback(Falcon<T> *falcon) {
 
   // function variables
-  boost::array<int, 3> forceInt;
-  boost::array<double, 3> force;
+  boost::array<double, 3> torque;
   boost::array<double, 3> angles;
+  boost::array<int, 3> encodedTorque;
   const boost::array<double, 3> zeros = {{0,0,0}}; 
 
   // while device falcon is initialized
@@ -102,19 +102,23 @@ void falconCallback(Falcon<T> *falcon) {
       continue;
     }
 
-    // reset force variable
-    force = zeros;
+    // reset torque variable
+    torque = zeros;
 
     // if a valid desired angle was provided
     if(falcon->hasDesiredAngles) {
-      force = falcon->controller->getForce(angles, falcon->desiredAngles);
-
+      torque = falcon->controller->getTorque(angles, falcon->desiredAngles);
     }
 
-    // convert torque unit to falcon 
+    // convert torque to motor voltages:
+    encodedTorque[0] = -10000.0*torque[0];
+    encodedTorque[1] = -10000.0*torque[1];
+    encodedTorque[2] = -10000.0*torque[2];
 
-    // set feedback force
-    falcon->firmware->setForces(forceInt);
+    // NOTE: this is from the libnifalcon's FalconKinematicStamper.cpp
+
+    // set feedback torque 
+    falcon->firmware->setForces(encodedTorque);
   }
 
 }
