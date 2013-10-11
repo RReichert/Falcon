@@ -1,6 +1,6 @@
 // HEADERS
 #include "falcon/falcon.hpp"
-#include "falcon/controller/pid.hpp"
+#include "falcon/controller/test.hpp"
 
 // LIBRARY
 #include <cstdlib>
@@ -10,14 +10,20 @@
 int main(int argc, char** argv){
 
   // create falcon instance
-  Falcon<Controller> falcon;
+  Falcon<Test_Controller> falcon;
 
   // check if there are any
   if(falcon.hasError()) {
     cerr << "Error: " << falcon.getError() << endl;
     return EXIT_FAILURE;
-  } else {
-    cout << "Success" << endl;
-    return EXIT_SUCCESS;
   }
+
+  // start controller
+  falcon.start();
+
+  // let the controller controll the device
+  boost::this_thread::sleep(boost::posix_time::seconds(10));
+
+  // exit successfully
+  return EXIT_SUCCESS;
 }
