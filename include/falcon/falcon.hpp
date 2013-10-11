@@ -20,12 +20,13 @@ class Falcon {
 
   private:
 
-    // error message
-    string error;
-
     // state
     bool running = false;
     bool initialized = false;
+
+    // interthread channel
+    boost::mutex runningMutex;
+    boost::condition_variable runningEvent;
 
     // device
     FalconDevice device;
@@ -41,6 +42,9 @@ class Falcon {
 
     // callback thread
     boost::thread *callbackThread = NULL;
+
+    // error message
+    string error;
 
   public:
 
@@ -84,9 +88,12 @@ class Falcon {
 template<class T>
 void Falcon<T>::operator() () {
 
+  // establish scoped lock on running event
+  boost::unique_lock<boost::mutex> lock(runningMutex); 
+
   // function variables
-  boost::array<double, 3> torque;
   boost::array<double, 3> angles;
+  boost::array<double, 3> torque;
   boost::array<int, 3> encodedTorque;
   const boost::array<double, 3> zeros = {{0,0,0}}; 
 
@@ -95,7 +102,7 @@ void Falcon<T>::operator() () {
 
     // if device has not requested a controller - wait 
     if(!running) {
-      // wait till running is set
+      runningEvent.wait(lock);
       continue;
     }
 
@@ -163,7 +170,7 @@ bool Falcon<T>::init() {
       }
     }
 
-    // report on connection status
+    // report failure to connect with device
     if(!device.isOpen()) {
       throw "unable to communicate with any of the devices";
     }
@@ -172,13 +179,13 @@ bool Falcon<T>::init() {
     firmware = device.getFalconFirmware();
     kinematic = device.getFalconKinematic();
 
-    // setup controller
+    // startup controller
     controller = (Controller*) new T();
 
-    // create callback function thread
+    // thread off callback function 
     callbackThread = new boost::thread(boost::ref(*this));
 
-    // successfully initialized
+    // flag successful initialization
     initialized = true;
 
   } catch(char const* msg) {
@@ -225,6 +232,7 @@ bool Falcon<T>::isInit() {
 template<class T>
 void Falcon<T>::start() {
   running = true;
+  runningEvent.notify_all();
 }
 
 template<class T>
