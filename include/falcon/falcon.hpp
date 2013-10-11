@@ -205,8 +205,10 @@ template<class T>
 void Falcon<T>::uninit() {
 
   // flag as uninitialized
-  running = false;
   initialized = false;
+
+  // flag to stop controller
+  stop();
 
   // close the thread
   if(callbackThread) {
@@ -238,6 +240,7 @@ void Falcon<T>::start() {
 template<class T>
 void Falcon<T>::stop() {
   running = false;
+  runningEvent.notify_all();
 }
 
 template<class T>
