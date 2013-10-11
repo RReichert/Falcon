@@ -8,6 +8,8 @@
 #include <boost/type_traits.hpp>
 #include <boost/static_assert.hpp>
 #include <falcon/core/FalconDevice.h>
+#include <falcon/firmware/FalconFirmwareNovintSDK.h>
+#include <falcon/kinematic/FalconKinematicStamper.h>
 
 using namespace std;
 using namespace libnifalcon;
@@ -174,6 +176,10 @@ bool Falcon<T>::init() {
     if(!device.isOpen()) {
       throw "unable to communicate with any of the devices";
     }
+
+    // set firmware and & kienmatic
+    device.setFalconFirmware<FalconFirmwareNovintSDK>();
+    device.setFalconKinematic<FalconKinematicStamper>();
 
     // obtain firmware & kinematic
     firmware = device.getFalconFirmware();
