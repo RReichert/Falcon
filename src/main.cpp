@@ -13,7 +13,9 @@ int main(int argc, char** argv){
   Falcon<Test_Controller> falcon;
 
   // check if there are any
-  if(falcon.hasError()) {
+  if(falcon.isInit()) {
+    cout << "Device is up" << endl;
+  } else {
     cerr << "Error: " << falcon.getError() << endl;
     return EXIT_FAILURE;
   }

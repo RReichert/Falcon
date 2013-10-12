@@ -10,6 +10,7 @@
 #include <falcon/core/FalconDevice.h>
 #include <falcon/firmware/FalconFirmwareNovintSDK.h>
 #include <falcon/kinematic/FalconKinematicStamper.h>
+#include <falcon/util/FalconFirmwareBinaryNvent.h>
 
 using namespace std;
 using namespace libnifalcon;
@@ -140,6 +141,16 @@ void Falcon<T>::operator() () {
 
 template<class T>
 Falcon<T>::Falcon() {
+
+  // set firmware & kinematic
+  device.setFalconFirmware<FalconFirmwareNovintSDK>();
+  device.setFalconKinematic<FalconKinematicStamper>();
+
+  // obtain firmware & kinematic
+  firmware = device.getFalconFirmware();
+  kinematic = device.getFalconKinematic();
+
+  // initialize device
   init();
 }
 
@@ -160,7 +171,7 @@ bool Falcon<T>::init() {
     unsigned int deviceCount;
     device.getDeviceCount(deviceCount);
 
-    // check number of falcon's connected 
+    // error if not devices were found 
     if(deviceCount == 0) {
       throw "no device found";
     }
@@ -177,13 +188,28 @@ bool Falcon<T>::init() {
       throw "unable to communicate with any of the devices";
     }
 
-    // set firmware and & kienmatic
-    device.setFalconFirmware<FalconFirmwareNovintSDK>();
-    device.setFalconKinematic<FalconKinematicStamper>();
+    // check firmware is initialized
+    bool firmwareLoaded = device.isFirmwareLoaded();
+    if(!firmwareLoaded) {
 
-    // obtain firmware & kinematic
-    firmware = device.getFalconFirmware();
-    kinematic = device.getFalconKinematic();
+      // firmware property variables
+      bool skip_checksum = false;
+      long firmware_size = NOVINT_FALCON_NVENT_FIRMWARE_SIZE;
+      uint8_t* firmware_block = const_cast<uint8_t*>(NOVINT_FALCON_NVENT_FIRMWARE);
+
+      // attempt to load firmware a few times
+      for(int i = 0; i < 10; i++) {
+        if(firmware->loadFirmware(skip_checksum, firmware_size, firmware_block)) {
+          firmwareLoaded = true;
+          break;
+        }
+      }
+    }
+
+    // report if firmware was not loaded 
+    if(!firmwareLoaded) {
+      throw "unable to load firmware";
+    }
 
     // startup controller
     controller = (Controller*) new T();
