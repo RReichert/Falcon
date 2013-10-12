@@ -82,7 +82,7 @@ class Falcon {
     // position methods 
     bool getCurrentAngles(boost::array<double, 3> &currentAngles);
     bool getCurrentPosition(boost::array<double, 3> &currentPosition);
-    void setDesiredPosition(boost::array<double, 3> desiredPosition);
+    void setDesiredPosition(boost::array<double, 3> &desiredPosition);
 
     // CALLBACK FUNCTION
     void operator() (); 
@@ -310,6 +310,6 @@ bool Falcon<T>::getCurrentPosition(boost::array<double, 3> &currentPosition) {
 }
 
 template<class T>
-void Falcon<T>::setDesiredPosition(boost::array<double, 3> desiredPosition){
+void Falcon<T>::setDesiredPosition(boost::array<double, 3> &desiredPosition){
   hasDesiredAngles = kinematic->getAngles(desiredPosition, desiredAngles);
 }
