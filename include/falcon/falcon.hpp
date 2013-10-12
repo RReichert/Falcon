@@ -80,9 +80,9 @@ class Falcon {
     string getError();
 
     // position methods 
-    bool getCurrentAngles(boost::array<double, 3> &currentAngles);
-    bool getCurrentPosition(boost::array<double, 3> &currentPosition);
-    void setDesiredPosition(boost::array<double, 3> &desiredPosition);
+    bool getCurrentAngles(boost::array<double, 3> (&currentAngles));
+    bool getCurrentPosition(boost::array<double, 3> (&currentPosition));
+    void setDesiredPosition(boost::array<double, 3> (&desiredPosition));
 
     // CALLBACK FUNCTION
     void operator() (); 
@@ -122,7 +122,7 @@ void Falcon<T>::operator() () {
 
       // if a valid desired angle was provided
       if(hasDesiredAngles) {
-        torque = controller->getTorque(angles, desiredAngles);
+        controller->getTorque(angles, desiredAngles, torque);
       }
 
       // convert torque to motor voltages:
@@ -291,7 +291,7 @@ string Falcon<T>::getError() {
 }
 
 template<class T>
-bool Falcon<T>::getCurrentAngles(boost::array<double, 3> &currentAngles) {
+bool Falcon<T>::getCurrentAngles(boost::array<double, 3> (&currentAngles)) {
   if(initialized) {
     boost::array<double, 3> currentPosition = device.getPosition();
     kinematic->getAngles(currentPosition, currentAngles);
@@ -301,7 +301,7 @@ bool Falcon<T>::getCurrentAngles(boost::array<double, 3> &currentAngles) {
 }
 
 template<class T>
-bool Falcon<T>::getCurrentPosition(boost::array<double, 3> &currentPosition) {
+bool Falcon<T>::getCurrentPosition(boost::array<double, 3> (&currentPosition)) {
   if(initialized) {
     currentPosition = device.getPosition();
   }
@@ -310,6 +310,6 @@ bool Falcon<T>::getCurrentPosition(boost::array<double, 3> &currentPosition) {
 }
 
 template<class T>
-void Falcon<T>::setDesiredPosition(boost::array<double, 3> &desiredPosition){
+void Falcon<T>::setDesiredPosition(boost::array<double, 3> (&desiredPosition)){
   hasDesiredAngles = kinematic->getAngles(desiredPosition, desiredAngles);
 }

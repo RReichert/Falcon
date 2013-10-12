@@ -5,6 +5,7 @@
 // LIBRARY
 #include <cstdlib>
 #include <iostream>
+#include <boost/array.hpp>
 
 // MAIN
 int main(int argc, char** argv){
@@ -19,6 +20,10 @@ int main(int argc, char** argv){
     cerr << "Error: " << falcon.getError() << endl;
     return EXIT_FAILURE;
   }
+
+  // set desired tracking position
+//  boost::array<double, 3> desiredPosition();
+//  falcon.setDesiredPosition(desiredPosition);
 
   // start controller
   falcon.start();

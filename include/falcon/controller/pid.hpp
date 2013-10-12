@@ -9,5 +9,5 @@ class PID : public Controller{
   public:
 
     // feedback controller method
-    boost::array<double, 3> getTorque(boost::array<double, 3> currentAngles, boost::array<double, 3> desiredAngles);
+    void getTorque(const boost::array<double, 3> (&currentAngles), const boost::array<double, 3> (&desiredAngles), boost::array<double, 3> (&torque));
 };
