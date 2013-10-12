@@ -126,9 +126,9 @@ void Falcon<T>::operator() () {
       }
 
       // convert torque to motor voltages:
-      encodedTorque[0] = -10000.0*torque[0];
-      encodedTorque[1] = -10000.0*torque[1];
-      encodedTorque[2] = -10000.0*torque[2];
+      encodedTorque[0] = torque[0];
+      encodedTorque[1] = torque[1];
+      encodedTorque[2] = torque[2];
 
       // NOTE: this is from the libnifalcon's FalconKinematicStamper.cpp
 

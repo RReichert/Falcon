@@ -22,8 +22,8 @@ int main(int argc, char** argv){
   }
 
   // set desired tracking position
-//  boost::array<double, 3> desiredPosition();
-//  falcon.setDesiredPosition(desiredPosition);
+  boost::array<double, 3> desiredPosition = {{0,0,0.16}};
+  falcon.setDesiredPosition(desiredPosition);
 
   // start controller
   falcon.start();
