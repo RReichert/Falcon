@@ -29,7 +29,11 @@ int main(int argc, char** argv){
   falcon.start();
 
   // let the controller controll the device
-  boost::this_thread::sleep(boost::posix_time::seconds(10));
+  boost::array<double, 3> theta;
+  for(int x=0; x<100; x++) {
+    cout << "Theta: [" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << endl;  
+    boost::this_thread::sleep(boost::posix_time::millisec(100));
+  }
 
   // exit successfully
   return EXIT_SUCCESS;

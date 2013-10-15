@@ -18,18 +18,14 @@ using namespace libnifalcon;
 template<class T=Controller>
 class Falcon {
 
-  // ASSERT THAT THE CLASS BEING PASSED IS A CHILD OF CONTROLLER 
+  // ASSERT THAT THE CLASS BEING PASSED IS A CHILD OF CONTROLLER CLASS
   BOOST_STATIC_ASSERT((boost::is_base_of<Controller, T>::type::value));
 
   private:
 
     // state
-    bool running = false;
-    bool initialized = false;
-
-    // interthread channel
-    boost::mutex runningMutex;
-    boost::condition_variable runningEvent;
+    bool running;
+    bool initialized;
 
     // device
     FalconDevice device;
@@ -37,14 +33,20 @@ class Falcon {
     boost::shared_ptr<FalconKinematic> kinematic;
 
     // controller
-    Controller *controller = NULL;
+    Controller *controller;
 
-    // falcon-controller
-    bool hasDesiredAngles = NULL;
-    boost::array<double, 3> desiredAngles;
+    // falcon-controller shared resource
+    boost::mutex thetaMutex;
+    boost::array<double, 3> theta;
+
+    boost::mutex omegaMutex;
+    boost::array<double, 3> omega;
+    
+    boost::mutex desiredThetaMutex;
+    boost::array<double, 3> desiredTheta;
 
     // callback thread
-    boost::thread *callbackThread = NULL;
+    boost::thread *callbackThread;
 
     // error message
     string error;
@@ -79,35 +81,44 @@ class Falcon {
     bool hasError();
     string getError();
 
-    // position methods 
-    bool getCurrentAngles(boost::array<double, 3> (&currentAngles));
-    bool getCurrentPosition(boost::array<double, 3> (&currentPosition));
-    void setDesiredPosition(boost::array<double, 3> (&desiredPosition));
+    // public sharing resource 
+    bool setDesiredPosition(boost::array<double, 3> (&desiredPosition));
+
+    bool getTheta(boost::array<double, 3> (&theta));
+    bool getOmega(boost::array<double, 3> (&omega));
+
+    bool getPosition(boost::array<double, 3> (&position));
+    bool getVelocity(boost::array<double, 3> (&velocity));
+
+    // NOTE: for each of the methods above, if the system is not initialized
+    //       or there is an error, false is returned. only exception is
+    //       setDesiredPosition, where if the position is outside the workspace
+    //       the value will not be set and function will return false. if all 
+    //       is well, true is returned
 
     // CALLBACK FUNCTION
     void operator() (); 
+
+  private:
+
+    // private sharing resource
+    void setTheta(boost::array<double, 3> (&theta));
+    void setOmega(boost::array<double, 3> (&omega));
+    void getDesiredTheta(boost::array<double, 3> (&desiredTheta));
+
 };
 
 template<class T>
 void Falcon<T>::operator() () {
 
-  // establish scoped lock on running event
-  boost::unique_lock<boost::mutex> lock(runningMutex); 
-
   // function variables
-  boost::array<double, 3> angles;
+  boost::array<double, 3> theta;
   boost::array<double, 3> torque;
   boost::array<int, 3> encodedTorque;
   const boost::array<double, 3> zeros = {{0,0,0}}; 
 
   // while device falcon is initialized
   while(initialized) {
-
-    // if device has not requested a controller - wait 
-    if(!running) {
-      runningEvent.wait(lock);
-      continue;
-    }
 
     // MAIN DEVICE LOOP 
     device.runIOLoop();
@@ -117,20 +128,26 @@ void Falcon<T>::operator() () {
       // interruption marker
       boost::this_thread::disable_interruption iPoint; 
 
-      // reset torque variable
-      torque = zeros;
+      // CALCULATE POSITION AND VELOCITY
 
-      // if a valid desired angle was provided
-      if(hasDesiredAngles) {
-        controller->getTorque(angles, desiredAngles, torque);
+      // if controller is not running
+      if(!running) {
+        continue;
       }
+
+      // reset torque and get desired theta
+      torque = zeros;
+      getDesiredTheta(desiredTheta);
+
+      // call the controller 
+      controller->getTorque(theta, desiredTheta, torque);
 
       // convert torque to motor voltages:
       encodedTorque[0] = torque[0];
       encodedTorque[1] = torque[1];
       encodedTorque[2] = torque[2];
 
-      // NOTE: this is from the libnifalcon's FalconKinematicStamper.cpp
+      // NOTE: this will require the formula from Characteristic of the Novint Falcon
 
       // set feedback torque 
       firmware->setForces(encodedTorque);
@@ -140,7 +157,14 @@ void Falcon<T>::operator() () {
 }
 
 template<class T>
-Falcon<T>::Falcon() {
+Falcon<T>::Falcon() :
+  running(false),
+  initialized(false),
+  controller(NULL),
+  callbackThread(NULL) {
+
+  // set default desired theta value
+  desiredTheta = {{0,0,0.11}};
 
   // set firmware & kinematic
   device.setFalconFirmware<FalconFirmwareNovintSDK>();
@@ -214,15 +238,20 @@ bool Falcon<T>::init() {
     // startup controller
     controller = (Controller*) new T();
 
-    // thread off callback function 
+    // create callback function 
     callbackThread = new boost::thread(boost::ref(*this));
+
+    // check if callback thread was created
+    if(!callbackThread) {
+      throw "unable to spawn callback thread";
+    }
 
     // flag successful initialization
     initialized = true;
 
   } catch(char const* msg) {
 
-    // clean up if error uninitialized 
+    // uninitialized device
     uninit();
 
     // record error message
@@ -266,13 +295,11 @@ bool Falcon<T>::isInit() {
 template<class T>
 void Falcon<T>::start() {
   running = true;
-  runningEvent.notify_all();
 }
 
 template<class T>
 void Falcon<T>::stop() {
   running = false;
-  runningEvent.notify_all();
 }
 
 template<class T>
@@ -291,25 +318,79 @@ string Falcon<T>::getError() {
 }
 
 template<class T>
-bool Falcon<T>::getCurrentAngles(boost::array<double, 3> (&currentAngles)) {
-  if(initialized) {
-    boost::array<double, 3> currentPosition = device.getPosition();
-    kinematic->getAngles(currentPosition, currentAngles);
-  }
-
-  return initialized;
+void Falcon<T>::getDesiredTheta(boost::array<double, 3> (&desiredTheta)) {
+  boost::lock_guard<boost::mutex> lock(desiredThetaMutex);
+  desiredTheta = this->desiredTheta;
 }
 
 template<class T>
-bool Falcon<T>::getCurrentPosition(boost::array<double, 3> (&currentPosition)) {
-  if(initialized) {
-    currentPosition = device.getPosition();
-  }
-
-  return initialized;
+bool Falcon<T>::setDesiredPosition(boost::array<double, 3> (&desiredPosition)) {
+  boost::lock_guard<boost::mutex> lock(desiredThetaMutex);
+  return kinematic->getAngles(desiredPosition, desiredTheta);
 }
 
 template<class T>
-void Falcon<T>::setDesiredPosition(boost::array<double, 3> (&desiredPosition)){
-  hasDesiredAngles = kinematic->getAngles(desiredPosition, desiredAngles);
+bool Falcon<T>::getTheta(boost::array<double, 3> (&theta)) {
+  if(!initialized) {
+    return false;
+  }
+  
+  boost::lock_guard<boost::mutex> lock(thetaMutex);
+  theta = this->theta;
+  return true;  
+}
+
+template<class T>
+void Falcon<T>::setTheta(boost::array<double, 3> (&theta)) {
+  boost::lock_guard<boost::mutex> lock(thetaMutex);
+  this->theta = theta;
+}
+
+template<class T>
+bool Falcon<T>::getOmega(boost::array<double, 3> (&omega)) {
+  if(!initialized) {
+    return false;
+  }
+  
+  boost::lock_guard<boost::mutex> lock(omegaMutex);
+  omega = this->omega;
+  return true;  
+}
+
+template<class T>
+void Falcon<T>::setOmega(boost::array<double, 3> (&omega)) {
+  boost::lock_guard<boost::mutex> lock(omegaMutex);
+  this->omega = omega;
+}
+
+template<class T>
+bool Falcon<T>::getPosition(boost::array<double, 3> (&position)) {
+  if(!initialized) {
+    return false;
+  }
+
+  // lock the theta while we make a local copy of it  
+  boost::array<double, 3> theta;
+  thetaMutex.lock();
+  theta = this->theta;
+  thetaMutex.unlock();  
+
+  // CALCULATE THE POSITION USING theta
+  return true;  
+}
+
+template<class T>
+bool Falcon<T>::getVelocity(boost::array<double, 3> (&velocity)) {
+  if(!initialized) {
+    return false;
+  }
+
+  // lock the theta while we make a local copy of it  
+  boost::array<double, 3> omega;
+  omegaMutex.lock();
+  omega = this->omega;
+  omegaMutex.unlock();  
+
+  // CALCULATE THE VELOCITY USING omega
+  return true;  
 }
