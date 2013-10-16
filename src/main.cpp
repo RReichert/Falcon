@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <boost/array.hpp>
-
+#include <boost/date_time.hpp>
 // MAIN
 int main(int argc, char** argv){
 
@@ -28,10 +28,15 @@ int main(int argc, char** argv){
   // start controller
   falcon.start();
 
-  // let the controller controll the device
+  // let the controller control the device
+  boost::posix_time::ptime time;
   boost::array<double, 3> theta;
+  boost::array<double, 3> omega;
   for(int x=0; x<100; x++) {
-    cout << "Theta: [" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << endl;  
+    falcon.getMotion(time, theta, omega);
+    cout << "[" << time << "]:";
+    cout << " Theta: [" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]";
+    cout << " Omega: [" << omega[0] << ", " << omega[1] << ", " << omega[2] << "]" << endl;
     boost::this_thread::sleep(boost::posix_time::millisec(100));
   }
 

@@ -126,8 +126,8 @@ void Falcon<T>::operator() () {
   while(initialized) {
 
     // MAIN DEVICE LOOP 
-    if(!firmware->runIOLoop()) {
-      cerr << "runIOLoop Error: " << firmware->getErrorCode() << endl;
+    if(!device.runIOLoop()) {
+      continue; 
     }
 
     // IDENTIFY THE FOLLOWING SECTION AS NONE INTERRUPTABLE
@@ -185,6 +185,7 @@ Falcon<T>::Falcon() :
 
   // set/obtain firmware
   device.setFalconFirmware<FalconFirmwareNovintSDK>();
+  firmware = device.getFalconFirmware();
 
   // initialize device
   init();
@@ -238,26 +239,28 @@ bool Falcon<T>::init() {
     if(!firmwareLoaded) {
 
       // firmware variables
-      bool skip_checksum = false;
+      bool skip_checksum = true;
       long firmware_size = NOVINT_FALCON_NVENT_FIRMWARE_SIZE;
       uint8_t* firmware_block = const_cast<uint8_t*>(NOVINT_FALCON_NVENT_FIRMWARE);
 
       // attempt to load firmware
-      firmwareLoaded = firmware->loadFirmware(skip_checksum, firmware_size, firmware_block);
+      for(int x=0; x<10; x++) {
+        if(device.getFalconFirmware()->loadFirmware(skip_checksum, firmware_size, firmware_block)) {
+          firmwareLoaded = true;
+          continue;
+        }
+      }
     }
 
     // report if firmware was not loaded 
-    if(!firmwareLoaded) {
+    if(!device.isFirmwareLoaded()) {
       throw "unable to load firmware";
     }
-
-    // obtain device's firmware
-    firmware = device.getFalconFirmware();
 
     // attempt to communicate with falcon
     bool working = false;
     for(int x=0; x<10; x++) {
-      if(firmware->runIOLoop()) {
+      if(device.runIOLoop(FalconDevice::FALCON_LOOP_FIRMWARE)) {
         working = true;
       }
     }
