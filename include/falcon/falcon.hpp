@@ -1,15 +1,15 @@
 #pragma once
-
+#include "falcon/kinematics.hpp"
 #include "falcon/controller/controller.hpp"
 
 #include <iostream>
 #include <boost/array.hpp>
 #include <boost/thread.hpp>
+#include <boost/date_time.hpp>
 #include <boost/type_traits.hpp>
 #include <boost/static_assert.hpp>
 #include <falcon/core/FalconDevice.h>
 #include <falcon/firmware/FalconFirmwareNovintSDK.h>
-#include <falcon/kinematic/FalconKinematicStamper.h>
 #include <falcon/util/FalconFirmwareBinaryNvent.h>
 
 using namespace std;
@@ -27,22 +27,24 @@ class Falcon {
     bool running;
     bool initialized;
 
+    // initialize time
+    boost::posix_time::ptime initTime;
+
     // device
     FalconDevice device;
+    Kinematics kinematics;
     boost::shared_ptr<FalconFirmware> firmware;
-    boost::shared_ptr<FalconKinematic> kinematic;
 
     // controller
     Controller *controller;
 
     // falcon-controller shared resource
-    boost::mutex thetaMutex;
+    boost::mutex motionMutex;
     boost::array<double, 3> theta;
-
-    boost::mutex omegaMutex;
     boost::array<double, 3> omega;
-    
-    boost::mutex desiredThetaMutex;
+    boost::posix_time::ptime time;
+
+    boost::mutex desiredMutex;
     boost::array<double, 3> desiredTheta;
 
     // callback thread
@@ -83,12 +85,7 @@ class Falcon {
 
     // public sharing resource 
     bool setDesiredPosition(boost::array<double, 3> (&desiredPosition));
-
-    bool getTheta(boost::array<double, 3> (&theta));
-    bool getOmega(boost::array<double, 3> (&omega));
-
-    bool getPosition(boost::array<double, 3> (&position));
-    bool getVelocity(boost::array<double, 3> (&velocity));
+    bool getMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega));
 
     // NOTE: for each of the methods above, if the system is not initialized
     //       or there is an error, false is returned. only exception is
@@ -102,9 +99,8 @@ class Falcon {
   private:
 
     // private sharing resource
-    void setTheta(boost::array<double, 3> (&theta));
-    void setOmega(boost::array<double, 3> (&omega));
     void getDesiredTheta(boost::array<double, 3> (&desiredTheta));
+    void setMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega));
 
 };
 
@@ -112,44 +108,65 @@ template<class T>
 void Falcon<T>::operator() () {
 
   // function variables
-  boost::array<double, 3> theta;
-  boost::array<double, 3> torque;
-  boost::array<int, 3> encodedTorque;
-  const boost::array<double, 3> zeros = {{0,0,0}}; 
+  double dt;
 
-  // while device falcon is initialized
+  boost::array<double, 3> theta;
+  boost::array<double, 3> omega;
+  boost::array<double, 3> torque;
+  boost::posix_time::ptime time;
+
+  boost::array<double, 3> prevTheta;
+  boost::array<double, 3> prevOmega;
+  boost::posix_time::ptime prevTime;
+
+  boost::array<int, 3> encodedTheta;
+  boost::array<int, 3> encodedTorque;
+
+  // while device is initialized
   while(initialized) {
 
     // MAIN DEVICE LOOP 
-    device.runIOLoop();
+    if(!firmware->runIOLoop()) {
+      cerr << "runIOLoop Error: " << firmware->getErrorCode() << endl;
+    }
 
-    // DO NOT INTERRUPT
+    // IDENTIFY THE FOLLOWING SECTION AS NONE INTERRUPTABLE
     {
       // interruption marker
       boost::this_thread::disable_interruption iPoint; 
 
-      // CALCULATE POSITION AND VELOCITY
+      // capture the previous motion values 
+      getMotion(prevTime, prevTheta, prevOmega);
 
-      // if controller is not running
+      // capture the current motion values
+      encodedTheta = firmware->getEncoderValues();
+      kinematics.decodeTheta(encodedTheta, theta); 
+      time = boost::posix_time::microsec_clock::local_time();
+
+      // obtain the time difference between current and previous 
+      dt = ((double) (time - prevTime).total_microseconds()) * 1.0e-6;
+
+      // calculate omega
+      kinematics.d_dt(theta, prevTheta, dt, omega);
+
+      // save the curre motion values 
+      setMotion(time, theta, omega);
+
+      // check if you need to run controller 
       if(!running) {
         continue;
       }
 
-      // reset torque and get desired theta
-      torque = zeros;
+      // obtain desired theta 
       getDesiredTheta(desiredTheta);
 
-      // call the controller 
+      // run falcon controller 
       controller->getTorque(theta, desiredTheta, torque);
 
       // convert torque to motor voltages:
-      encodedTorque[0] = torque[0];
-      encodedTorque[1] = torque[1];
-      encodedTorque[2] = torque[2];
+      kinematics.encodeTorque(omega, torque, encodedTorque);
 
-      // NOTE: this will require the formula from Characteristic of the Novint Falcon
-
-      // set feedback torque 
+      // set torque 
       firmware->setForces(encodedTorque);
     }
   }
@@ -166,13 +183,8 @@ Falcon<T>::Falcon() :
   // set default desired theta value
   desiredTheta = {{0,0,0.11}};
 
-  // set firmware & kinematic
+  // set/obtain firmware
   device.setFalconFirmware<FalconFirmwareNovintSDK>();
-  device.setFalconKinematic<FalconKinematicStamper>();
-
-  // obtain firmware & kinematic
-  firmware = device.getFalconFirmware();
-  kinematic = device.getFalconKinematic();
 
   // initialize device
   init();
@@ -185,6 +197,15 @@ Falcon<T>::~Falcon() {
 
 template<class T>
 bool Falcon<T>::init() {
+
+  // uninitialize device
+  if(initialized) {
+    uninit();
+  }
+
+  // reset theta and omega
+  theta = {{0,0,0}};
+  omega = {{0,0,0}};
 
   // clear any error message
   error.clear();
@@ -216,24 +237,43 @@ bool Falcon<T>::init() {
     bool firmwareLoaded = device.isFirmwareLoaded();
     if(!firmwareLoaded) {
 
-      // firmware property variables
+      // firmware variables
       bool skip_checksum = false;
       long firmware_size = NOVINT_FALCON_NVENT_FIRMWARE_SIZE;
       uint8_t* firmware_block = const_cast<uint8_t*>(NOVINT_FALCON_NVENT_FIRMWARE);
 
-      // attempt to load firmware a few times
-      for(int i = 0; i < 10; i++) {
-        if(firmware->loadFirmware(skip_checksum, firmware_size, firmware_block)) {
-          firmwareLoaded = true;
-          break;
-        }
-      }
+      // attempt to load firmware
+      firmwareLoaded = firmware->loadFirmware(skip_checksum, firmware_size, firmware_block);
     }
 
     // report if firmware was not loaded 
     if(!firmwareLoaded) {
       throw "unable to load firmware";
     }
+
+    // obtain device's firmware
+    firmware = device.getFalconFirmware();
+
+    // attempt to communicate with falcon
+    bool working = false;
+    for(int x=0; x<10; x++) {
+      if(firmware->runIOLoop()) {
+        working = true;
+      }
+    }
+
+    // report if communication is down
+    if(!working) {
+      throw "unable to run IO loop";
+    }
+
+    // obtain theta
+    boost::array<int, 3> encodedTheta = firmware->getEncoderValues();
+    kinematics.decodeTheta(encodedTheta, theta);
+
+    // set time 
+    initTime = boost::posix_time::microsec_clock::local_time();
+    time = initTime;
 
     // startup controller
     controller = (Controller*) new T();
@@ -319,78 +359,34 @@ string Falcon<T>::getError() {
 
 template<class T>
 void Falcon<T>::getDesiredTheta(boost::array<double, 3> (&desiredTheta)) {
-  boost::lock_guard<boost::mutex> lock(desiredThetaMutex);
+  boost::lock_guard<boost::mutex> lock(desiredMutex);
   desiredTheta = this->desiredTheta;
 }
 
 template<class T>
 bool Falcon<T>::setDesiredPosition(boost::array<double, 3> (&desiredPosition)) {
-  boost::lock_guard<boost::mutex> lock(desiredThetaMutex);
-  return kinematic->getAngles(desiredPosition, desiredTheta);
+  boost::lock_guard<boost::mutex> lock(desiredMutex);
+//  return kinematic->getAngles(desiredPosition, desiredTheta);
+  return true;
 }
 
 template<class T>
-bool Falcon<T>::getTheta(boost::array<double, 3> (&theta)) {
+bool Falcon<T>::getMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega)) {
   if(!initialized) {
     return false;
   }
   
-  boost::lock_guard<boost::mutex> lock(thetaMutex);
+  boost::lock_guard<boost::mutex> lock(motionMutex);
+  time = this->time; 
   theta = this->theta;
+  omega = this->omega;
   return true;  
 }
 
 template<class T>
-void Falcon<T>::setTheta(boost::array<double, 3> (&theta)) {
-  boost::lock_guard<boost::mutex> lock(thetaMutex);
+void Falcon<T>::setMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega)) {
+  boost::lock_guard<boost::mutex> lock(motionMutex);
+  this->time = time;
   this->theta = theta;
-}
-
-template<class T>
-bool Falcon<T>::getOmega(boost::array<double, 3> (&omega)) {
-  if(!initialized) {
-    return false;
-  }
-  
-  boost::lock_guard<boost::mutex> lock(omegaMutex);
-  omega = this->omega;
-  return true;  
-}
-
-template<class T>
-void Falcon<T>::setOmega(boost::array<double, 3> (&omega)) {
-  boost::lock_guard<boost::mutex> lock(omegaMutex);
   this->omega = omega;
-}
-
-template<class T>
-bool Falcon<T>::getPosition(boost::array<double, 3> (&position)) {
-  if(!initialized) {
-    return false;
-  }
-
-  // lock the theta while we make a local copy of it  
-  boost::array<double, 3> theta;
-  thetaMutex.lock();
-  theta = this->theta;
-  thetaMutex.unlock();  
-
-  // CALCULATE THE POSITION USING theta
-  return true;  
-}
-
-template<class T>
-bool Falcon<T>::getVelocity(boost::array<double, 3> (&velocity)) {
-  if(!initialized) {
-    return false;
-  }
-
-  // lock the theta while we make a local copy of it  
-  boost::array<double, 3> omega;
-  omegaMutex.lock();
-  omega = this->omega;
-  omegaMutex.unlock();  
-
-  // CALCULATE THE VELOCITY USING omega
-  return true;  
 }
