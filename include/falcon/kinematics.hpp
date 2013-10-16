@@ -12,26 +12,23 @@ class Kinematics {
     const double theta_offset = 35*(pi/180.0);
 
     // motor properties
-    const double Im = 0;
-    const double Ks = 0;
-    const double Kd = 0;
+    const double Ks = 1.9835e-5;
+    const double Kd = 1.3779e-8;
 
     const double gain = 7.62;
     const double slots = 320;
     const double states = 4;
 
-// NEED TO UPDATE XXX
-
     // mechanical properties
-    const double a = 0.060;
-    const double b = 0.1025;
-    const double c = 0.0157;
-    const double d = 0.0115;
+    const double a = 60e-3;
+    const double b = 102.5e-3;
+    const double c = 15.7e-3;
+    const double d = 11.5e-3;
     const double e = d;
-    const double f = 0.0262;
-    const double g = 0.0279;
-    const double r = 0.0366;
-    const double s = 0.0272;
+    const double f = 26.2e-3;
+    const double g = 27.9e-3;
+    const double r = 36.6e-3;
+    const double s = 27.2e-3;
 
     // NOTE: all these readings are in SI unites
 

@@ -125,9 +125,10 @@ void Falcon<T>::operator() () {
   // while device is initialized
   while(initialized) {
 
+
     // MAIN DEVICE LOOP 
-    if(!device.runIOLoop()) {
-      continue; 
+    if(!firmware->runIOLoop()) {
+      continue;
     }
 
     // IDENTIFY THE FOLLOWING SECTION AS NONE INTERRUPTABLE
@@ -135,7 +136,7 @@ void Falcon<T>::operator() () {
       // interruption marker
       boost::this_thread::disable_interruption iPoint; 
 
-      // capture the previous motion values 
+      // capture the previous motion values
       getMotion(prevTime, prevTheta, prevOmega);
 
       // capture the current motion values
@@ -149,7 +150,7 @@ void Falcon<T>::operator() () {
       // calculate omega
       kinematics.d_dt(theta, prevTheta, dt, omega);
 
-      // save the curre motion values 
+      // save the current motion values
       setMotion(time, theta, omega);
 
       // check if you need to run controller 
@@ -166,7 +167,7 @@ void Falcon<T>::operator() () {
       // convert torque to motor voltages:
       kinematics.encodeTorque(omega, torque, encodedTorque);
 
-      // set torque 
+      // set desired torque
       firmware->setForces(encodedTorque);
     }
   }
