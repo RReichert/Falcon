@@ -9,8 +9,8 @@ class Kinematics {
     const double pi = 3.1415926535897932384;
 
     // motor/model properties 
-    const double theta_offset = 35*(pi/180.0);
-
+    const double theta_offset = 50*(pi/180.0);
+// XXX: need clarification on the theta offset value (30 or 50 degrees)
     // motor properties
     const double Ks = 1.9835e-5;
     const double Kd = 1.3779e-8;
@@ -31,9 +31,7 @@ class Kinematics {
     const double s = 27.2e-3;
 
     // NOTE: all these readings are in SI unites
-
-    // NOTE: these readings are based on the "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator" paper
-    //       although pretty simular values are given by libnifalcon
+    // NOTE: these readings are based on the "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator" paper. Simular values weren proposed by the libnifalcon library.
 
   public:
 
