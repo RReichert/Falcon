@@ -7,6 +7,7 @@
 #include <boost/thread.hpp>
 #include <boost/date_time.hpp>
 #include <boost/type_traits.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/static_assert.hpp>
 #include <falcon/core/FalconDevice.h>
 #include <falcon/firmware/FalconFirmwareNovintSDK.h>
@@ -125,7 +126,6 @@ void Falcon<T>::operator() () {
   // while device is initialized
   while(initialized) {
 
-
     // MAIN DEVICE LOOP 
     if(!firmware->runIOLoop()) {
       continue;
@@ -205,9 +205,8 @@ bool Falcon<T>::init() {
     uninit();
   }
 
-  // reset theta and omega
-  theta = {{0,0,0}};
-  omega = {{0,0,0}};
+  // log attempt to initialize device
+  BOOST_LOG_TRIVIAL(info) << "initializing novint falcon";
 
   // clear any error message
   error.clear();
@@ -223,21 +222,31 @@ bool Falcon<T>::init() {
       throw "no device found";
     }
 
+    // report number of devices found
+    BOOST_LOG_TRIVIAL(info) << deviceCount << " novint falcon[s] were identified in system";
+
     // attempt to open up connection with device
     for(unsigned int x=0; x<deviceCount; x++) {
+      BOOST_LOG_TRIVIAL(info) << "attempting to setup communicate with novint falcon #" << x;
       if(!device.open(x)) {
+        BOOST_LOG_TRIVIAL(info) << "opened communication with novint falcon #" << x;
         continue;
+      } else {
+        BOOST_LOG_TRIVIAL(info) << "failed to establish connection with novint falcon #" << x;
       }
     }
 
     // report failure to connect with device
     if(!device.isOpen()) {
-      throw "unable to communicate with any of the devices";
+      throw "unable to communicate with a novint falcon device";
     }
 
     // check firmware is initialized
     bool firmwareLoaded = device.isFirmwareLoaded();
     if(!firmwareLoaded) {
+
+      // log that firmware was not loaded
+      BOOST_LOG_TRIVIAL(info) << "device currently has not firmware";
 
       // firmware variables
       bool skip_checksum = true;
@@ -246,11 +255,17 @@ bool Falcon<T>::init() {
 
       // attempt to load firmware
       for(int x=0; x<10; x++) {
+        BOOST_LOG_TRIVIAL(info) << "attempt " << (x+1) << " to load firmware";
         if(device.getFalconFirmware()->loadFirmware(skip_checksum, firmware_size, firmware_block)) {
+          BOOST_LOG_TRIVIAL(info) << "firmware SUCCESSFULLY loaded";
           firmwareLoaded = true;
-          continue;
+          break;
+        } else {
+          BOOST_LOG_TRIVIAL(info) << "firmware FAILED to loaded";
         }
       }
+    } else {
+      BOOST_LOG_TRIVIAL(info) << "firmware already loaded";
     }
 
     // report if firmware was not loaded 
@@ -260,6 +275,7 @@ bool Falcon<T>::init() {
 
     // attempt to communicate with falcon
     bool working = false;
+    BOOST_LOG_TRIVIAL(info) << "running IO loop test to access that firmware is up and running";
     for(int x=0; x<10; x++) {
       if(device.runIOLoop(FalconDevice::FALCON_LOOP_FIRMWARE)) {
         working = true;
@@ -271,18 +287,30 @@ bool Falcon<T>::init() {
       throw "unable to run IO loop";
     }
 
-    // obtain theta
-    boost::array<int, 3> encodedTheta = firmware->getEncoderValues();
+    // declare local motion variables
+    boost::array<double, 3> theta;
+    boost::array<double, 3> omega;
+    boost::array<int, 3> encodedTheta;
+
+    // calculate theta value
+    encodedTheta = firmware->getEncoderValues();
     kinematics.decodeTheta(encodedTheta, theta);
 
-    // set time 
+    // assume system is stationary
+    omega = {{0,0,0}};
+
+    // reset startup time
     initTime = boost::posix_time::microsec_clock::local_time();
-    time = initTime;
+
+    // set initial motion value
+    setMotion(initTime, theta, omega);
 
     // startup controller
+    BOOST_LOG_TRIVIAL(info) << "instantiating controller";
     controller = (Controller*) new T();
 
     // create callback function 
+    BOOST_LOG_TRIVIAL(info) << "instantiating callback thread";
     callbackThread = new boost::thread(boost::ref(*this));
 
     // check if callback thread was created
@@ -290,10 +318,16 @@ bool Falcon<T>::init() {
       throw "unable to spawn callback thread";
     }
 
+    // report successful initialization
+    BOOST_LOG_TRIVIAL(info) << "falcon successfully initialized";
+
     // flag successful initialization
     initialized = true;
 
   } catch(char const* msg) {
+
+    // flag error trying to initialize falcon
+    BOOST_LOG_TRIVIAL(info) << msg;
 
     // uninitialized device
     uninit();
@@ -309,25 +343,35 @@ bool Falcon<T>::init() {
 template<class T>
 void Falcon<T>::uninit() {
 
+  // log uninitialization attempt
+  BOOST_LOG_TRIVIAL(info) << "un-initializing novint falcon";
+
   // flag as uninitialized
   initialized = false;
 
   // flag to stop controller
-  stop();
+  if(running) {
+    stop();
+  }
 
   // close the thread
   if(callbackThread) {
+    BOOST_LOG_TRIVIAL(info) << "closing callback thread";
     callbackThread->join();
     delete callbackThread;
   }
 
   // destroy controller
   if(controller) {
+    BOOST_LOG_TRIVIAL(info) << "destroying controller";
     delete controller;
   }
 
   // close the falcon communication
-  device.close();
+  if(device.isOpen()) {
+    BOOST_LOG_TRIVIAL(info) << "closing novint falcon";
+    device.close();
+  }
 
 }
 
@@ -338,12 +382,14 @@ bool Falcon<T>::isInit() {
 
 template<class T>
 void Falcon<T>::start() {
+  BOOST_LOG_TRIVIAL(info) << "novint falcon started controller";
   running = true;
 }
 
 template<class T>
 void Falcon<T>::stop() {
   running = false;
+  BOOST_LOG_TRIVIAL(info) << "novint falcon stopped controller";
 }
 
 template<class T>
@@ -365,6 +411,7 @@ template<class T>
 void Falcon<T>::getDesiredTheta(boost::array<double, 3> (&desiredTheta)) {
   boost::lock_guard<boost::mutex> lock(desiredMutex);
   desiredTheta = this->desiredTheta;
+  BOOST_LOG_TRIVIAL(debug) << "getDesiredTheta( " << "[" << desiredTheta[0] << ", " << desiredTheta[1] << ", " << desiredTheta[2] << "]" << " )";
 }
 
 template<class T>
@@ -384,6 +431,9 @@ bool Falcon<T>::getMotion(boost::posix_time::ptime (&time), boost::array<double,
   time = this->time; 
   theta = this->theta;
   omega = this->omega;
+
+  BOOST_LOG_TRIVIAL(debug) << "getMotion( " << initTime << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
+
   return true;  
 }
 
@@ -393,4 +443,6 @@ void Falcon<T>::setMotion(boost::posix_time::ptime (&time), boost::array<double,
   this->time = time;
   this->theta = theta;
   this->omega = omega;
+
+  BOOST_LOG_TRIVIAL(debug) << "setMotion( " << initTime << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
 }

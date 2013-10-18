@@ -56,6 +56,11 @@ $ ./falcon
 IN PROGRESS
 ```
 
+##Known Issues
+
++ [bug#7241](https://svn.boost.org/trac/boost/ticket/7241): forced me to link with Boost System library, even through we don't use it
++ unable to dynamically linking with boost library, because of a bug with the new Log library.
+
 ##Report Bugs/Support
 
 If there are any questions, noticed a bug, or would like to criticise my code, please feel free to email (&lt;mylastname &gt;.&lt;myfirstname&gt;@gmail.com - done for spamming reasons) and I will get back to you as soon as possible.
