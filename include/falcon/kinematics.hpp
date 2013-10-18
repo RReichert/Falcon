@@ -9,7 +9,7 @@ class Kinematics {
     const double pi = 3.1415926535897932384;
 
     // motor/model properties 
-    const double theta_offset = 35*(pi/180.0);
+    const double theta_offset = 40*(pi/180.0);
 
     // motor properties
     const double Ks = 1.9835e-5;
