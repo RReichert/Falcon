@@ -8,9 +8,18 @@
 #include <boost/array.hpp>
 #include <boost/date_time.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
+
+// set debug filter
+void init_debug() {
+  boost::log::core::get()->set_filter(boost::log::trivial::severity >= boost::log::trivial::debug);
+};
 
 // MAIN
 int main(int argc, char** argv){
+
+  // setup debugger
+  init_debug();
 
   // create falcon instance
   Falcon<Test_Controller> falcon;
