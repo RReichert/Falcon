@@ -49,6 +49,7 @@ class Falcon {
     boost::array<double, 3> desiredTheta;
 
     // callback thread
+    boost::mutex callbackHold;
     boost::thread *callbackThread;
 
     // error message
@@ -123,6 +124,10 @@ void Falcon<T>::operator() () {
   boost::array<int, 3> encodedTheta;
   boost::array<int, 3> encodedTorque;
 
+  // await till the callback hold mutex is released
+  callbackHold.lock();
+  callbackHold.unlock();
+
   // while device is initialized
   while(initialized) {
 
@@ -142,9 +147,10 @@ void Falcon<T>::operator() () {
       // capture the current motion values
       encodedTheta = firmware->getEncoderValues();
       kinematics.decodeTheta(encodedTheta, theta); 
-      time = boost::posix_time::microsec_clock::local_time();
+      BOOST_LOG_TRIVIAL(debug) << "encoded theta: [" << encodedTheta[0] << ", " << encodedTheta[1] << ", " << encodedTheta[2] << "]"; 
 
       // obtain the time difference between current and previous 
+      time = boost::posix_time::microsec_clock::local_time();
       dt = ((double) (time - prevTime).total_microseconds()) * 1.0e-6;
 
       // calculate omega
@@ -166,6 +172,7 @@ void Falcon<T>::operator() () {
 
       // convert torque to motor voltages:
       kinematics.encodeTorque(omega, torque, encodedTorque);
+      BOOST_LOG_TRIVIAL(debug) << "encoded torque: [" << encodedTorque[0] << ", " << encodedTorque[1] << ", " << encodedTorque[2] << "]"; 
 
       // set desired torque
       firmware->setForces(encodedTorque);
@@ -310,12 +317,15 @@ bool Falcon<T>::init() {
     controller = (Controller*) new T();
 
     // create callback function 
+    callbackHold.lock();
     BOOST_LOG_TRIVIAL(info) << "instantiating callback thread";
     callbackThread = new boost::thread(boost::ref(*this));
 
     // check if callback thread was created
     if(!callbackThread) {
       throw "unable to spawn callback thread";
+    } else {
+      BOOST_LOG_TRIVIAL(info) << "successfully initilized callback thread";
     }
 
     // report successful initialization
@@ -323,6 +333,9 @@ bool Falcon<T>::init() {
 
     // flag successful initialization
     initialized = true;
+
+    // notify callback thread that it can start working
+    callbackHold.unlock();
 
   } catch(char const* msg) {
 
@@ -349,6 +362,9 @@ void Falcon<T>::uninit() {
   // flag as uninitialized
   initialized = false;
 
+  // remove hold on callback thread if it is set
+  callbackHold.unlock();
+
   // flag to stop controller
   if(running) {
     stop();
@@ -358,6 +374,7 @@ void Falcon<T>::uninit() {
   if(callbackThread) {
     BOOST_LOG_TRIVIAL(info) << "closing callback thread";
     callbackThread->join();
+    BOOST_LOG_TRIVIAL(info) << "closed callback thread";
     delete callbackThread;
   }
 
