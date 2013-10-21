@@ -20,7 +20,7 @@ void Kinematics::encodeTorque(const boost::array<double, 3> (&omega), const boos
     encodedTorque[x] = torque[x] / (Ks + Kd*omega[x]);
   }
 
-  // NOTE: this equation was taken directly from "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator", however a possible modification would be nice to account for the change in current within the dc motors internal electric component. The current mathematical model is good enough to approximate both the static/dynamic nature of the motor. 
+  // NOTE: this equation was taken directly from "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator", however a possible modification would be nice to account for the change in current within the dc motors internal electric component  
 }
 
 void Kinematics::d_dt(const boost::array<double, 3> (&currentValue), const boost::array<double, 3> (&prevValue), double dt, boost::array<double, 3> (&dValue_dt)) {
