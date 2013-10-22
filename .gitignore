@@ -5,3 +5,4 @@ build/
 # ignore file types
 *.swp
 *.swo
+*~
