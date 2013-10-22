@@ -8,6 +8,11 @@ class Kinematics {
     // mathematical constants
     const double pi = 3.1415926535897932384;
 
+    // coordinate system
+    const double phi1 = 15*(pi/180.0);
+    const double phi2 = 135*(pi/180.0);
+    const double phi3 = 255*(pi/180.0);
+
     // motor/model properties 
     const double theta_offset = 40*(pi/180.0);
 
