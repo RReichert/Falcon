@@ -1,7 +1,7 @@
 % coordinate system
 phi1 = deg2rad(15);
-phi2 = deg2rad(135);
-phi3 = deg2rad(255);
+phi2 = deg2rad(255);
+phi3 = deg2rad(135);
 
 % motor/model properties 
 theta_offset = deg2rad(40);

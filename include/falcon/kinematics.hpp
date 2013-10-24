@@ -10,11 +10,13 @@ class Kinematics {
 
     // coordinate system
     const double phi1 = 15*(pi/180.0);
-    const double phi2 = 135*(pi/180.0);
-    const double phi3 = 255*(pi/180.0);
+    const double phi2 = 255*(pi/180.0);
+    const double phi3 = 135*(pi/180.0);
 
     // motor/model properties 
     const double theta_offset = 40*(pi/180.0);
+    const double min_encoded_theta = -1600;
+    const double max_encoded_theta = 1600;
 
     // motor properties
     const double Ks = 1.9835e-5;
