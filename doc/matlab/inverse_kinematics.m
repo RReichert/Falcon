@@ -17,13 +17,18 @@ function [theta] = inverse_kinematics(position)
   rx = position(1);
   ry = position(2);
   rz = position(3);
+  
+  % maximum and minimum base angle values
+  theta_1_min = decode_theta([min_encoded_theta; min_encoded_theta; min_encoded_theta]);
+  theta_1_max = decode_theta([max_encoded_theta; max_encoded_theta; max_encoded_theta]);
 
   % for each of the arms
-  for phi=[phi1, phi2, phi3],
+  phi=[phi1, phi2, phi3];
+  for i=1:3
 
     % substitution #1
-    Rx = rx*cos(phi) + ry*sin(phi);
-    Ry = -rx*sin(phi) + ry*cos(phi);
+    Rx = rx*cos(phi(i)) + ry*sin(phi(i));
+    Ry = -rx*sin(phi(i)) + ry*cos(phi(i));
     Rz = rz;
 
     % calculate theta 3
@@ -42,29 +47,23 @@ function [theta] = inverse_kinematics(position)
     B = 2*Y;
     C = X-Z;
 
-  %{
-  theta_1 = deg2rad(25.85096);
-  theta_2 = deg2rad(90 - 79.998712);
-  theta_3 = -deg2rad(2.138165);
-
-  -(X+Z)*tan(theta_1/2)^2 + 2*Y*tan(theta_1/2) + X-Z
-  pause
-  %}
-
-    % calculate theta 1
-    gamma = (-B + sqrt(B^2-A*C))  / (2*A);
-    theta_1 = 2*atan(gamma);
-
+    % calculate the possible configuration for theta 1
+    config1 = 2*atan( (-B + sqrt(B^2-4*A*C))  / (2*A) );
+    config2 = 2*atan( (-B - sqrt(B^2-4*A*C))  / (2*A) );
+    
+    % choose the one that is within the possible range
+    if(config1 >= theta_1_min(i) && config1 <= theta_1_max(i))
+      theta_1 = config1;
+    else
+      theta_1 = config2;
+    end
+    
     % calculate theta 2
-    theta_2 = asin( -(Ry + c - r - a*cos(theta_1)) / (L) );
-
-    % calculate theta 1
-    gamma = (-B - sqrt(B^2-A*C))  / (2*A);
-    theta_1 = 2*atan(gamma);
-
-    % calculate theta 2
-    theta_2 = asin( -(Ry + c - r - a*cos(theta_1)) / (L) );
-
+    %theta_2 = asin( -(Ry + c - r - a*cos(theta_1)) / (L) );
+    
+    % save result
+    theta(i) = theta_1;
+    
   end
 
 end

@@ -10,9 +10,8 @@ C_1I = [cos(phi1) -sin(phi1) 0; sin(phi1) cos(phi1) 0 ; 0 0 1];
 rx = s + b*sin(theta_13) - f;
 ry = r + a*cos(theta_11) -sin(theta_12)*(d+b*cos(theta_13)+e) - c;
 rz =     a*sin(theta_11) + cos(theta_12)*(d+b*cos(theta_13)+e);
-position = [rx; ry; rz];
 
 % display results
-%position = C_1I*[rx;ry;rz];
+position = C_1I*[rx;ry;rz];
 
 end

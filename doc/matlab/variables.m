@@ -5,6 +5,8 @@ phi3 = deg2rad(255);
 
 % motor/model properties 
 theta_offset = deg2rad(40);
+max_encoded_theta = 1600;
+min_encoded_theta = -1600;
 
 % motor properties
 Ks = 1.9835e-5;
