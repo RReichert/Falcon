@@ -22,6 +22,9 @@ function [theta] = inverse_kinematics(position)
   theta_1_min = decode_theta([min_encoded_theta; min_encoded_theta; min_encoded_theta]);
   theta_1_max = decode_theta([max_encoded_theta; max_encoded_theta; max_encoded_theta]);
 
+  % declare return value
+  theta = zeros(3,1);
+  
   % for each of the arms
   phi=[phi1, phi2, phi3];
   for i=1:3
@@ -59,7 +62,10 @@ function [theta] = inverse_kinematics(position)
     end
     
     % calculate theta 2
-    %theta_2 = asin( -(Ry + c - r - a*cos(theta_1)) / (L) );
+    theta_2 = asin( -(Ry + c - r - a*cos(theta_1)) / (L) );
+ 
+% DEBUG LOG
+%display(['arm', num2str(i), ' = ', '[', num2str(rad2deg(theta_1)), ', ', num2str(rad2deg(theta_2)), ', ', num2str(rad2deg(theta_3)), ']']);
     
     % save result
     theta(i) = theta_1;
