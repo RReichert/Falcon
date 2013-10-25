@@ -1,46 +1,68 @@
 #include "falcon/kinematics.hpp"
 
 void Kinematics::decodeTheta(const boost::array<int, 3> (&encodedTheta), boost::array<double, 3> (&theta)) {
-
   for(int x=0; x<3; x++) {
-    theta[x] = (2*pi) * (encodedTheta[x]/(slots*states)) / gain + theta_offset;
+    theta[x] = decodeTheta(encodedTheta[x]);
   } 
-
-  // NOTE: derivation was based on the constraint:
-  //
-  //         arm_radius*theta = motor_shaft_radius*motor_theta
-  //
-  //       with gain = arm_radius/motor_shaft_radius
-
-  // NOTE: motor_theta is calculated based on the fact that we have states*slots per motor revolution
 }
 
 void Kinematics::encodeTorque(const boost::array<double, 3> (&omega), const boost::array<double, 3> (&torque), boost::array<int, 3> (&encodedTorque)) {
-
-  // declare function variables
-  double motorOmega, motorTorque;
-
-  // calculate the encoded torque
   for(int x=0; x<3; x++) {
-    motorOmega = gain*omega[x];
-    motorTorque = -torque[x]/gain;
-    encodedTorque[x] = motorTorque / (Ks + Kd*motorOmega);
-// XXX: need to check if the polarity of this encoded torque is correct
+    encodedTorque[x] = encodeTorque(omega[x], torque[x]);
   }
-
-  // NOTE: derivation was based on the constraint:
-  //
-  //         arm_torque = arm_radius*F && motor_torque = motor_shaft_radius*F
-  //
-  //       because F is the common term (interaction force), we can solve for motor torque given theta
-  //       following that we use the constraint expressed in decodedTheta and convert omega to motor omega
-  //       and use these two values to convert to the motor encoded value
-
-  // NOTE:  the equation to encode motor torque was taken directly from "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator", however in the future I would like to try and modify it a bit to account for the change in current within the dc motors internal electric component caused by the back emf
 }
 
 void Kinematics::d_dt(const boost::array<double, 3> (&currentValue), const boost::array<double, 3> (&prevValue), double dt, boost::array<double, 3> (&dValue_dt)) {
   for(int x=0; x<3; x++) {
     dValue_dt[x] = (currentValue[x] - prevValue[x]) / (dt);
   }
+}
+
+void Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta)) {
+
+  // function variables
+  double theta1, theta3;
+  double rx, ry, rz;
+  double Rx, Ry, Rz;
+  double X, Y, Z;
+  double A, B, C;
+  double L;
+  double phi[3] = {phi1, phi2, phi3};
+  double config1, config2;
+
+  // obtain each position element
+  rx = position[0];
+  ry = position[1];
+  rz = position[2];
+
+  // loop through each arm and calculate the theta values
+  for(int i=0; i<3; i++) {
+
+    Rx = rx*cos(phi[i]) + ry*sin(phi[i]);
+    Ry = -rx*sin(phi[i]) + ry*cos(phi[i]);
+    Rz = rz;
+
+    theta3 = asin((Rx+f-s) / b);
+    L = d + b*cos(theta3) + e;
+
+    X = Ry + c - r;
+    Y = Rz;
+    Z = (a*a +r*r + c*c + Ry*Ry + Rz*Rz + 2*Ry*c -2*Ry*r - 2*r*c - L*L) / (2*a);
+
+    A = -(X+Z);
+    B = 2*Y;
+    C = X-Z;
+
+    config1 = 2*atan( (-B + sqrt(B*B-4*A*C))  / (2*A) );
+    config2 = 2*atan( (-B - sqrt(B*B-4*A*C))  / (2*A) );
+    
+    if(config1 >= min_theta && config1 <= max_theta) {
+      theta1 = config1;
+    } else {
+      theta1 = config2;
+    } 
+    
+    theta[i] = theta1;
+  }
+
 }

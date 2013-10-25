@@ -8,15 +8,15 @@ class Kinematics {
     // mathematical constants
     const double pi = 3.1415926535897932384;
 
-    // coordinate system
+    // coordinate systems
     const double phi1 = 15*(pi/180.0);
     const double phi2 = 255*(pi/180.0);
     const double phi3 = 135*(pi/180.0);
 
     // motor/model properties 
     const double theta_offset = 40*(pi/180.0);
-    const double min_encoded_theta = -1600;
-    const double max_encoded_theta = 1600;
+    const double min_theta = decodeTheta(-1600);
+    const double max_theta = decodeTheta(1600);
 
     // motor properties
     const double Ks = 1.9835e-5;
@@ -38,17 +38,32 @@ class Kinematics {
     const double s = 27.2e-3;
 
     // NOTE: all these readings are in SI unites
-
-    // NOTE: these readings are based on the "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator" paper
-    //       although pretty simular values are given by libnifalcon
+    // NOTE: these readings are based on the "Characterisation of the Novint Falcon Haptic Device 
+    //       for Application as a Robot Manipulator" paper although pretty simular values are given
+    //       by libnifalcon. contrary the what the paper says, I have noticed that the offset angle
+    //       is actually 40 deg rather then the proposed 35 and 50 from the two sources.
 
   public:
 
-    // encoding/decoding device data 
+    // decoding device theta value
     void decodeTheta(const boost::array<int, 3> (&encodedTheta), boost::array<double, 3> (&theta));
-    void encodeTorque(const boost::array<double, 3> (&oemga), const boost::array<double, 3> (&torque), boost::array<int, 3> (&encodedTorque));
+    inline double decodeTheta(const int encodedTheta) {
+      return (2*pi) * (encodedTheta/(slots*states)) / gain + theta_offset;
+    }
 
-    // calculation 
+    // encode device torque value
+    void encodeTorque(const boost::array<double, 3> (&omega), const boost::array<double, 3> (&torque), boost::array<int, 3> (&encodedTorque));
+    inline int encodeTorque(const double omega, const double torque) {
+      double motorOmega = gain*omega;
+      double motorTorque = -torque/gain;
+      return motorTorque / (Ks + Kd*motorOmega);
+    }
+
+    // NOTE:  the equation to encode motor torque was taken directly from "Characterisation of the Novint Falcon Haptic Device for Application as a Robot Manipulator", however in the future I would like to try and modify it a bit to account for the change in current within the dc motors internal electric component caused by the back emf
+
+    // calculate differntial of value
     void d_dt(const boost::array<double, 3> (&currentValue), const boost::array<double, 3> (&prevValue), double dt, boost::array<double, 3> (&dValue_dt));
 
+    // inverse kinematics
+    void inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta));
 };
