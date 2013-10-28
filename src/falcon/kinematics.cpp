@@ -18,10 +18,10 @@ void Kinematics::d_dt(const boost::array<double, 3> (&currentValue), const boost
   }
 }
 
-void Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta)) {
+bool Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta)) {
 
   // function variables
-  double theta1, theta3;
+  double theta3;
   double rx, ry, rz;
   double Rx, Ry, Rz;
   double X, Y, Z;
@@ -29,13 +29,15 @@ void Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), b
   double L;
   double phi[3] = {phi1, phi2, phi3};
   double config1, config2;
+  boost::array<double,3> tempTheta;
 
   // obtain each position element
   rx = position[0];
   ry = position[1];
   rz = position[2];
 
-  // loop through each arm and calculate the theta values
+  // loop through each arm and calculate the arm theta values
+  bool error = false;
   for(int i=0; i<3; i++) {
 
     Rx = rx*cos(phi[i]) + ry*sin(phi[i]);
@@ -57,12 +59,22 @@ void Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), b
     config2 = 2*atan( (-B - sqrt(B*B-4*A*C))  / (2*A) );
     
     if(config1 >= min_theta && config1 <= max_theta) {
-      theta1 = config1;
+      tempTheta[i] = config1;
+    } else if(config2 >= min_theta && config2 <= max_theta) {
+      tempTheta[i] = config2;
     } else {
-      theta1 = config2;
-    } 
-    
-    theta[i] = theta1;
+      error = true;
+      break;
+    }
   }
 
+  // if there was not error, transfer over from temp theta to theta
+  if(!error) {
+    for(int x=0; x<3; x++){
+      theta[x] = tempTheta[x];
+    }
+  }
+
+  // indicate status
+  return !error;
 }

@@ -65,5 +65,5 @@ class Kinematics {
     void d_dt(const boost::array<double, 3> (&currentValue), const boost::array<double, 3> (&prevValue), double dt, boost::array<double, 3> (&dValue_dt));
 
     // inverse kinematics
-    void inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta));
+    bool inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta));
 };
