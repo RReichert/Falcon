@@ -7,3 +7,6 @@ build/
 *.swo
 *~
 *#
+
+# ignore qt generated files
+CMakeLists.txt.user
