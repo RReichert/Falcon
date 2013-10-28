@@ -323,6 +323,7 @@ bool Falcon<T>::init() {
 
     // check if callback thread was created
     if(!callbackThread) {
+      callbackHold.unlock();
       throw "unable to spawn callback thread";
     } else {
       BOOST_LOG_TRIVIAL(info) << "successfully initilized callback thread";
@@ -361,9 +362,6 @@ void Falcon<T>::uninit() {
 
   // flag as uninitialized
   initialized = false;
-
-  // remove hold on callback thread if it is set
-  callbackHold.unlock();
 
   // flag to stop controller
   if(running) {
