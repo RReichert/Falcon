@@ -1,4 +1,9 @@
+#include <cassert>
+#include <complex>
+#include <algorithm>
 #include <boost/array.hpp>
+#include <boost/numeric/ublas/lu.hpp>
+#include <boost/numeric/ublas/matrix.hpp>
 #include <boost/math/constants/constants.hpp>
 
 class Kinematics {
@@ -37,6 +42,10 @@ class Kinematics {
     const double r = 36.6e-3;
     const double s = 27.2e-3;
 
+    // forward kinematics
+    const double tolerance = 1e-6;
+    const unsigned int max_iterations = 15;
+
     // NOTE: all these readings are in SI unites
     // NOTE: these readings are based on the "Characterisation of the Novint Falcon Haptic Device 
     //       for Application as a Robot Manipulator" paper although pretty simular values are given
@@ -66,4 +75,25 @@ class Kinematics {
 
     // inverse kinematics
     bool inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 3> (&theta));
+    bool inverse_kinematics(const boost::array<double, 3> (&position), boost::array<double, 9> (&thetas));
+
+    // NOTE: the first inverse kinematics only returns the base angles, while the second one returns all the
+    //       novint falcon's angles [theta_11, theta_12, .. , theta_32, theta__33]
+
+    // forward kinematics
+    bool forward_kinematics(const boost::array<double, 3> (&theta), const boost::array<double, 3> (&positionEstimate), boost::array<double, 3> (&position));
+
+  private:
+
+    // find the maximum error difference between two matricies
+    double max_error(const boost::numeric::ublas::matrix<double> (&a), const boost::numeric::ublas::matrix<double> (&b));
+
+    // calculates inv(A)
+    bool inverse_matrix(const boost::numeric::ublas::matrix<double> (&m), boost::numeric::ublas::matrix<double> (&inv_m));
+
+    // kinematic constraint matrix
+    void constraint_matrix(const boost::array<double, 9> (&thetas), const boost::array<double, 3> (&position), boost::numeric::ublas::matrix<double> (&fn));
+
+    // kinematic constraint jacobian matrix
+    void constraint_matrix_dash(const boost::array<double, 9> (&thetas), boost::numeric::ublas::matrix<double> (&fn_dash));
 };
