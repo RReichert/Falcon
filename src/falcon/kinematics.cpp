@@ -106,46 +106,43 @@ bool Kinematics::inverse_kinematics(const boost::array<double, 3> (&position), b
 
 bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), const boost::array<double, 3> (&positionEstimate), boost::array<double, 3> (&position)) {
 
-  // declare function variables
-  bool error = false;
+  // function variables
   boost::numeric::ublas::matrix<double> Ok(9,1);              // current configuration estimation
   boost::numeric::ublas::matrix<double> Okp1(9,1);            // next configuration estimation
-  boost::numeric::ublas::matrix<double> temp(9,1);            // next configuration estimation
   boost::numeric::ublas::matrix<double> fn(9,1);              // newton raphson F vector
   boost::numeric::ublas::matrix<double> fn_dash(9,9);	        // newton raphson F' matrix
   boost::numeric::ublas::matrix<double> fn_dash_inverse(9,9);	// newton raphson inv(F') matrix
 
-  boost::array<double, 9> tempThetas;	  // local estimate thetas
-  boost::array<double, 3> tempPosition;	// local estimate position
+  boost::array<double, 9> currentThetas;	  // local estimate thetas
+  boost::array<double, 3> currentPosition;	// local estimate position
+  // NOTE: the previous two vectors are used to hold the current (Ok) position and
+  //       theta values. we need it when calling fn and fn_dash
 
   // transfer estimate position to our local position vector
   for(int x=0; x<3; x++) {
-    tempPosition[x] = position[x];
+    currentPosition[x] = position[x];
   }
 
-  // obtain the estimated thetas configuration
-  error = inverse_kinematics(tempPosition, tempThetas);
-
-  // report if estimate point is outside the workspace
-  if(error) {
-    return error;
+  // obtain the thetas configuration for the current position - check if in workspace
+  if( !inverse_kinematics(currentPosition, currentThetas) ) {
+    return false;
   }
 
-  // setup first estimate values
-  Okp1(0,0) = tempPosition[0];
-  Okp1(1,0) = tempThetas[1];
-  Okp1(2,0) = tempThetas[2];
-  Okp1(3,0) = tempPosition[1];
-  Okp1(4,0) = tempThetas[4];
-  Okp1(5,0) = tempThetas[5];
-  Okp1(6,0) = tempPosition[2];
-  Okp1(7,0) = tempThetas[7];
-  Okp1(8,0) = tempThetas[8];
+  // setup first estimate values Okp1
+  Okp1(0,0) = currentPosition[0];  // r_x
+  Okp1(1,0) = currentThetas[1];    // theta_12
+  Okp1(2,0) = currentThetas[2];    // theta_13
+  Okp1(3,0) = currentPosition[1];  // r_y
+  Okp1(4,0) = currentThetas[4];    // theta_22
+  Okp1(5,0) = currentThetas[5];    // theta_23
+  Okp1(6,0) = currentPosition[2];  // r_z
+  Okp1(7,0) = currentThetas[7];    // theta_32
+  Okp1(8,0) = currentThetas[8];    // theta_33
 
   // perform estimation algorithm
   unsigned int iterations = 0;
-  do
-  {
+  do {
+
     // stop algorithm if it has taken too long
     if(iterations >= max_iterations) {
       break;
@@ -156,32 +153,33 @@ bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), cons
     // update previous estimate with current estimate
     Ok = Okp1;
 
-    // setup the position vector
-    tempPosition[0] = Ok(0,0);
-    tempPosition[0] = Ok(3,0);
-    tempPosition[0] = Ok(6,0);
+    // update the current position vector
+    currentPosition[0] = Ok(0,0);
+    currentPosition[0] = Ok(3,0);
+    currentPosition[0] = Ok(6,0);
 
-    // setup the thetas vector (grab the base angles and the estimate angles)
-    tempThetas[0] = theta[0];
-    tempThetas[1] = Ok(1,0);
-    tempThetas[2] = Ok(2,0);
-    tempThetas[3] = theta[1];
-    tempThetas[4] = Ok(4,0);
-    tempThetas[5] = Ok(5,0);
-    tempThetas[6] = theta[2];
-    tempThetas[7] = Ok(7,0);
-    tempThetas[8] = Ok(8,0);
+    // update the angular configuration vector
+    currentThetas[0] = theta[0];
+    currentThetas[1] = Ok(1,0);
+    currentThetas[2] = Ok(2,0);
+    currentThetas[3] = theta[1];
+    currentThetas[4] = Ok(4,0);
+    currentThetas[5] = Ok(5,0);
+    currentThetas[6] = theta[2];
+    currentThetas[7] = Ok(7,0);
+    currentThetas[8] = Ok(8,0);
 
-    // calculate the F and F' newton raphons vector/matrix
-    constraint_matrix(tempThetas, tempPosition, fn);
-    constraint_matrix_dash(tempThetas, fn_dash);
+    // calculate the F and F' Newton Raphons matricies
+    constraint_matrix(currentThetas, currentPosition, fn);
+    constraint_matrix_dash(currentThetas, fn_dash);
 
-    // calculate inv(F')*F using LU Decomposition
-    inverse_matrix(fn_dash, fn_dash_inverse);
-    temp = boost::numeric::ublas::prod(fn_dash_inverse, fn);
+    // calculate inv(F') - check if invertable
+    if( !inverse_matrix(fn_dash, fn_dash_inverse) ) {
+      return false;
+    }
 
     // calculate Okp1 = Ok - inv(F')*F
-    Okp1 = Ok - temp;
+    Okp1 = Ok - boost::numeric::ublas::prod(fn_dash_inverse, fn);
   }
   while(max_error(Okp1,Ok) > tolerance);
 
@@ -190,24 +188,26 @@ bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), cons
     return false;
   }
 
-  // transfer solutions to
+  // transfer solutions
   position[0] = Okp1(0,0);
   position[1] = Okp1(3,0);
   position[2] = Okp1(6,0);
 
-  // indicate successful result
+  // return successful status
   return true;
 }
 
 double Kinematics::max_error(const boost::numeric::ublas::matrix<double> (&a), const boost::numeric::ublas::matrix<double> (&b)) {
+
   assert(a.size1() != 0);
+  assert(a.size2() != 0);
   assert(a.size1() ==  b.size1());
   assert(a.size2() ==  b.size2());
 
   double error = std::abs( a(0,0) - b(0,0) );
   for(unsigned int x=0; x<a.size1(); x++) {
     for(unsigned int y=0; y<a.size2(); y++) {
-      error = std::abs( std::max(a(x,y), b(x,y)) );
+      error = std::max(error,  std::abs(a(x,y) - b(x,y)));
     }
   }
 

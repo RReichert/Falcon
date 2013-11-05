@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cassert>
 #include <complex>
 #include <algorithm>
@@ -28,8 +30,8 @@ class Kinematics {
     const double Kd = 1.3779e-8;
 
     const double gain = 7.62;
-    const double slots = 320;
-    const double states = 4;
+    const double num_slots = 320;
+    const double num_states = 4;
 
     // mechanical properties
     const double a = 60e-3;
@@ -57,7 +59,7 @@ class Kinematics {
     // decoding device theta value
     void decodeTheta(const boost::array<int, 3> (&encodedTheta), boost::array<double, 3> (&theta));
     inline double decodeTheta(const int encodedTheta) {
-      return (2*pi) * (encodedTheta/(slots*states)) / gain + theta_offset;
+      return (2*pi) * (encodedTheta/(num_slots*num_states)) / gain + theta_offset;
     }
 
     // encode device torque value
