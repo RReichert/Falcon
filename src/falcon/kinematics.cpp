@@ -120,7 +120,7 @@ bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), cons
 
   // transfer estimate position to our local position vector
   for(int x=0; x<3; x++) {
-    currentPosition[x] = position[x];
+    currentPosition[x] = positionEstimate[x];
   }
 
   // obtain the thetas configuration for the current position - check if in workspace
@@ -130,12 +130,12 @@ bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), cons
 
   // setup first estimate values Okp1
   Okp1(0,0) = currentPosition[0];  // r_x
-  Okp1(1,0) = currentThetas[1];    // theta_12
-  Okp1(2,0) = currentThetas[2];    // theta_13
-  Okp1(3,0) = currentPosition[1];  // r_y
-  Okp1(4,0) = currentThetas[4];    // theta_22
-  Okp1(5,0) = currentThetas[5];    // theta_23
-  Okp1(6,0) = currentPosition[2];  // r_z
+  Okp1(1,0) = currentPosition[1];  // r_y
+  Okp1(2,0) = currentPosition[2];  // r_z
+  Okp1(3,0) = currentThetas[1];    // theta_12
+  Okp1(4,0) = currentThetas[2];    // theta_13
+  Okp1(5,0) = currentThetas[4];    // theta_22
+  Okp1(6,0) = currentThetas[5];    // theta_23
   Okp1(7,0) = currentThetas[7];    // theta_32
   Okp1(8,0) = currentThetas[8];    // theta_33
 
@@ -155,16 +155,16 @@ bool Kinematics::forward_kinematics(const boost::array<double, 3> (&theta), cons
 
     // update the current position vector
     currentPosition[0] = Ok(0,0);
-    currentPosition[0] = Ok(3,0);
-    currentPosition[0] = Ok(6,0);
+    currentPosition[1] = Ok(1,0);
+    currentPosition[2] = Ok(2,0);
 
     // update the angular configuration vector
     currentThetas[0] = theta[0];
-    currentThetas[1] = Ok(1,0);
-    currentThetas[2] = Ok(2,0);
+    currentThetas[1] = Ok(3,0);
+    currentThetas[2] = Ok(4,0);
     currentThetas[3] = theta[1];
-    currentThetas[4] = Ok(4,0);
-    currentThetas[5] = Ok(5,0);
+    currentThetas[4] = Ok(5,0);
+    currentThetas[5] = Ok(6,0);
     currentThetas[6] = theta[2];
     currentThetas[7] = Ok(7,0);
     currentThetas[8] = Ok(8,0);

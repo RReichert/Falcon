@@ -4,6 +4,7 @@
 #include <complex>
 #include <algorithm>
 #include <boost/array.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/numeric/ublas/lu.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/math/constants/constants.hpp>
