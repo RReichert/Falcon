@@ -5,3 +5,8 @@ build/
 # ignore file types
 *.swp
 *.swo
+*~
+*#
+
+# ignore qt generated files
+CMakeLists.txt.user

@@ -86,7 +86,7 @@ class Falcon {
     string getError();
 
     // public sharing resource 
-    bool setDesiredPosition(boost::array<double, 3> (&desiredPosition));
+    bool setDesiredPosition(const boost::array<double, 3> (&desiredPosition));
     bool getMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega));
 
     // NOTE: for each of the methods above, if the system is not initialized
@@ -323,6 +323,7 @@ bool Falcon<T>::init() {
 
     // check if callback thread was created
     if(!callbackThread) {
+      callbackHold.unlock();
       throw "unable to spawn callback thread";
     } else {
       BOOST_LOG_TRIVIAL(info) << "successfully initilized callback thread";
@@ -361,9 +362,6 @@ void Falcon<T>::uninit() {
 
   // flag as uninitialized
   initialized = false;
-
-  // remove hold on callback thread if it is set
-  callbackHold.unlock();
 
   // flag to stop controller
   if(running) {
@@ -432,10 +430,15 @@ void Falcon<T>::getDesiredTheta(boost::array<double, 3> (&desiredTheta)) {
 }
 
 template<class T>
-bool Falcon<T>::setDesiredPosition(boost::array<double, 3> (&desiredPosition)) {
+bool Falcon<T>::setDesiredPosition(const boost::array<double, 3> (&desiredPosition)) {
   boost::lock_guard<boost::mutex> lock(desiredMutex);
-//  return kinematic->getAngles(desiredPosition, desiredTheta);
-  return true;
+  if( kinematics.inverse_kinematics(desiredPosition, desiredTheta) ) {
+    BOOST_LOG_TRIVIAL(debug) << "inverse_kinematics( " << "[" << desiredPosition[0] << ", " << desiredPosition[1] << ", " << desiredPosition[2] << "]" << " )" << " -> "<< "[" << desiredTheta[0] << ", " << desiredTheta[1] << ", " << desiredTheta[2] << "]";
+    return true;
+  } else {
+    BOOST_LOG_TRIVIAL(debug) << "inverse_kinematics( " << "[" << desiredPosition[0] << ", " << desiredPosition[1] << ", " << desiredPosition[2] << "]" << " )" << " -> "<< "INVALID POSITION";
+    return false;
+  }
 }
 
 template<class T>
@@ -461,5 +464,5 @@ void Falcon<T>::setMotion(boost::posix_time::ptime (&time), boost::array<double,
   this->theta = theta;
   this->omega = omega;
 
-  BOOST_LOG_TRIVIAL(debug) << "setMotion( " << initTime << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
+  BOOST_LOG_TRIVIAL(debug) << "setMotion( " << time << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
 }
