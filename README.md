@@ -59,7 +59,7 @@ IN PROGRESS
 ##Known Issues
 
 + [bug#7241](https://svn.boost.org/trac/boost/ticket/7241): forced me to link with Boost System library, even through we don't use it
-+ unable to dynamically linking with boost library, because of a bug with the new Log library.
++ forward kinematics takes longer then 1.1ms per iteration, this will be looked into later on
 
 ##Report Bugs/Support
 
