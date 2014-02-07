@@ -1,6 +1,4 @@
 #pragma once
-#include "falcon/kinematics.hpp"
-#include "falcon/controller/controller.hpp"
 
 #include <iostream>
 #include <boost/array.hpp>
@@ -12,6 +10,9 @@
 #include <falcon/core/FalconDevice.h>
 #include <falcon/firmware/FalconFirmwareNovintSDK.h>
 #include <falcon/util/FalconFirmwareBinaryNvent.h>
+
+#include "falcon/kinematics.hpp"
+#include "falcon/controller/controller.hpp"
 
 using namespace std;
 using namespace libnifalcon;
@@ -85,18 +86,18 @@ class Falcon {
     bool hasError();
     string getError();
 
-    // public sharing resource 
+    // public sharing resource
     bool setDesiredPosition(const boost::array<double, 3> (&desiredPosition));
     bool getMotion(boost::posix_time::ptime (&time), boost::array<double, 3> (&theta), boost::array<double, 3> (&omega));
 
     // NOTE: for each of the methods above, if the system is not initialized
     //       or there is an error, false is returned. only exception is
     //       setDesiredPosition, where if the position is outside the workspace
-    //       the value will not be set and function will return false. if all 
+    //       the value will not be set and function will return false. if all
     //       is well, true is returned
 
     // CALLBACK FUNCTION
-    void operator() (); 
+    void operator() ();
 
   private:
 
@@ -131,7 +132,7 @@ void Falcon<T>::operator() () {
   // while device is initialized
   while(initialized) {
 
-    // MAIN DEVICE LOOP 
+    // MAIN DEVICE LOOP
     if(!firmware->runIOLoop()) {
       continue;
     }
@@ -139,17 +140,16 @@ void Falcon<T>::operator() () {
     // IDENTIFY THE FOLLOWING SECTION AS NONE INTERRUPTABLE
     {
       // interruption marker
-      boost::this_thread::disable_interruption iPoint; 
+      boost::this_thread::disable_interruption iPoint;
 
       // capture the previous motion values
       getMotion(prevTime, prevTheta, prevOmega);
 
       // capture the current motion values
       encodedTheta = firmware->getEncoderValues();
-      kinematics.decodeTheta(encodedTheta, theta); 
-      BOOST_LOG_TRIVIAL(debug) << "encoded theta: [" << encodedTheta[0] << ", " << encodedTheta[1] << ", " << encodedTheta[2] << "]"; 
+      kinematics.decodeTheta(encodedTheta, theta);
 
-      // obtain the time difference between current and previous 
+      // obtain the time difference between current and previous
       time = boost::posix_time::microsec_clock::local_time();
       dt = ((double) (time - prevTime).total_microseconds()) * 1.0e-6;
 
@@ -159,20 +159,20 @@ void Falcon<T>::operator() () {
       // save the current motion values
       setMotion(time, theta, omega);
 
-      // check if you need to run controller 
+      // check if you need to run controller
       if(!running) {
         continue;
       }
 
-      // obtain desired theta 
+      // obtain desired theta
       getDesiredTheta(desiredTheta);
 
-      // run falcon controller 
+      // run falcon controller
       controller->getTorque(theta, desiredTheta, torque);
 
       // convert torque to motor voltages:
       kinematics.encodeTorque(omega, torque, encodedTorque);
-      BOOST_LOG_TRIVIAL(debug) << "encoded torque: [" << encodedTorque[0] << ", " << encodedTorque[1] << ", " << encodedTorque[2] << "]"; 
+      BOOST_LOG_TRIVIAL(debug) << "encoded torque: [" << encodedTorque[0] << ", " << encodedTorque[1] << ", " << encodedTorque[2] << "]";
 
       // set desired torque
       firmware->setForces(encodedTorque);
@@ -212,9 +212,6 @@ bool Falcon<T>::init() {
     uninit();
   }
 
-  // log attempt to initialize device
-  BOOST_LOG_TRIVIAL(info) << "initializing novint falcon";
-
   // clear any error message
   error.clear();
 
@@ -224,22 +221,15 @@ bool Falcon<T>::init() {
     unsigned int deviceCount;
     device.getDeviceCount(deviceCount);
 
-    // error if not devices were found 
+    // error if not devices were found
     if(deviceCount == 0) {
       throw "no device found";
     }
 
-    // report number of devices found
-    BOOST_LOG_TRIVIAL(info) << deviceCount << " novint falcon[s] were identified in system";
-
     // attempt to open up connection with device
     for(unsigned int x=0; x<deviceCount; x++) {
-      BOOST_LOG_TRIVIAL(info) << "attempting to setup communicate with novint falcon #" << x;
       if(!device.open(x)) {
-        BOOST_LOG_TRIVIAL(info) << "opened communication with novint falcon #" << x;
         continue;
-      } else {
-        BOOST_LOG_TRIVIAL(info) << "failed to establish connection with novint falcon #" << x;
       }
     }
 
@@ -252,9 +242,6 @@ bool Falcon<T>::init() {
     bool firmwareLoaded = device.isFirmwareLoaded();
     if(!firmwareLoaded) {
 
-      // log that firmware was not loaded
-      BOOST_LOG_TRIVIAL(info) << "device currently has not firmware";
-
       // firmware variables
       bool skip_checksum = true;
       long firmware_size = NOVINT_FALCON_NVENT_FIRMWARE_SIZE;
@@ -262,27 +249,20 @@ bool Falcon<T>::init() {
 
       // attempt to load firmware
       for(int x=0; x<10; x++) {
-        BOOST_LOG_TRIVIAL(info) << "attempt " << (x+1) << " to load firmware";
         if(device.getFalconFirmware()->loadFirmware(skip_checksum, firmware_size, firmware_block)) {
-          BOOST_LOG_TRIVIAL(info) << "firmware SUCCESSFULLY loaded";
           firmwareLoaded = true;
           break;
-        } else {
-          BOOST_LOG_TRIVIAL(info) << "firmware FAILED to loaded";
         }
       }
-    } else {
-      BOOST_LOG_TRIVIAL(info) << "firmware already loaded";
     }
 
-    // report if firmware was not loaded 
+    // report if firmware was not loaded
     if(!device.isFirmwareLoaded()) {
       throw "unable to load firmware";
     }
 
     // attempt to communicate with falcon
     bool working = false;
-    BOOST_LOG_TRIVIAL(info) << "running IO loop test to access that firmware is up and running";
     for(int x=0; x<10; x++) {
       if(device.runIOLoop(FalconDevice::FALCON_LOOP_FIRMWARE)) {
         working = true;
@@ -313,24 +293,17 @@ bool Falcon<T>::init() {
     setMotion(initTime, theta, omega);
 
     // startup controller
-    BOOST_LOG_TRIVIAL(info) << "instantiating controller";
     controller = (Controller*) new T();
 
-    // create callback function 
+    // create callback function
     callbackHold.lock();
-    BOOST_LOG_TRIVIAL(info) << "instantiating callback thread";
     callbackThread = new boost::thread(boost::ref(*this));
 
     // check if callback thread was created
     if(!callbackThread) {
       callbackHold.unlock();
       throw "unable to spawn callback thread";
-    } else {
-      BOOST_LOG_TRIVIAL(info) << "successfully initilized callback thread";
     }
-
-    // report successful initialization
-    BOOST_LOG_TRIVIAL(info) << "falcon successfully initialized";
 
     // flag successful initialization
     initialized = true;
@@ -339,9 +312,6 @@ bool Falcon<T>::init() {
     callbackHold.unlock();
 
   } catch(char const* msg) {
-
-    // flag error trying to initialize falcon
-    BOOST_LOG_TRIVIAL(info) << msg;
 
     // uninitialized device
     uninit();
@@ -357,9 +327,6 @@ bool Falcon<T>::init() {
 template<class T>
 void Falcon<T>::uninit() {
 
-  // log uninitialization attempt
-  BOOST_LOG_TRIVIAL(info) << "un-initializing novint falcon";
-
   // flag as uninitialized
   initialized = false;
 
@@ -370,24 +337,19 @@ void Falcon<T>::uninit() {
 
   // close the thread
   if(callbackThread) {
-    BOOST_LOG_TRIVIAL(info) << "closing callback thread";
     callbackThread->join();
-    BOOST_LOG_TRIVIAL(info) << "closed callback thread";
     delete callbackThread;
   }
 
   // destroy controller
   if(controller) {
-    BOOST_LOG_TRIVIAL(info) << "destroying controller";
     delete controller;
   }
 
   // close the falcon communication
   if(device.isOpen()) {
-    BOOST_LOG_TRIVIAL(info) << "closing novint falcon";
     device.close();
   }
-
 }
 
 template<class T>
@@ -397,14 +359,12 @@ bool Falcon<T>::isInit() {
 
 template<class T>
 void Falcon<T>::start() {
-  BOOST_LOG_TRIVIAL(info) << "novint falcon started controller";
   running = true;
 }
 
 template<class T>
 void Falcon<T>::stop() {
   running = false;
-  BOOST_LOG_TRIVIAL(info) << "novint falcon stopped controller";
 }
 
 template<class T>
@@ -426,17 +386,14 @@ template<class T>
 void Falcon<T>::getDesiredTheta(boost::array<double, 3> (&desiredTheta)) {
   boost::lock_guard<boost::mutex> lock(desiredMutex);
   desiredTheta = this->desiredTheta;
-  BOOST_LOG_TRIVIAL(debug) << "getDesiredTheta( " << "[" << desiredTheta[0] << ", " << desiredTheta[1] << ", " << desiredTheta[2] << "]" << " )";
 }
 
 template<class T>
 bool Falcon<T>::setDesiredPosition(const boost::array<double, 3> (&desiredPosition)) {
   boost::lock_guard<boost::mutex> lock(desiredMutex);
   if( kinematics.inverse_kinematics(desiredPosition, desiredTheta) ) {
-    BOOST_LOG_TRIVIAL(debug) << "inverse_kinematics( " << "[" << desiredPosition[0] << ", " << desiredPosition[1] << ", " << desiredPosition[2] << "]" << " )" << " -> "<< "[" << desiredTheta[0] << ", " << desiredTheta[1] << ", " << desiredTheta[2] << "]";
     return true;
   } else {
-    BOOST_LOG_TRIVIAL(debug) << "inverse_kinematics( " << "[" << desiredPosition[0] << ", " << desiredPosition[1] << ", " << desiredPosition[2] << "]" << " )" << " -> "<< "INVALID POSITION";
     return false;
   }
 }
@@ -446,15 +403,13 @@ bool Falcon<T>::getMotion(boost::posix_time::ptime (&time), boost::array<double,
   if(!initialized) {
     return false;
   }
-  
+
   boost::lock_guard<boost::mutex> lock(motionMutex);
-  time = this->time; 
+  time = this->time;
   theta = this->theta;
   omega = this->omega;
 
-  BOOST_LOG_TRIVIAL(debug) << "getMotion( " << initTime << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
-
-  return true;  
+  return true;
 }
 
 template<class T>
@@ -463,6 +418,4 @@ void Falcon<T>::setMotion(boost::posix_time::ptime (&time), boost::array<double,
   this->time = time;
   this->theta = theta;
   this->omega = omega;
-
-  BOOST_LOG_TRIVIAL(debug) << "setMotion( " << time << " ; " << "[" << theta[0] << ", " << theta[1] << ", " << theta[2] << "]" << " ; " << "[" << omega[0] << ", " << omega[1] << ", "<< omega[2] << "]" << " )";
 }
